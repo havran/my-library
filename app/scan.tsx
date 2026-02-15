@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useLibraryStore } from "@/store/useLibraryStore";
-import { fetchByISBN, searchByTitle } from "@/services/bookApi";
+import { fetchByISBN, searchByTitle, searchByText } from "@/services/bookApi";
 import { searchByOCR } from "@/services/coverSearch";
 import { fetchImageAsBase64 } from "@/services/imageCache";
 import { useTheme } from "@/utils/theme";
@@ -26,9 +26,11 @@ import { ManualAddForm } from "@/components/ManualAddForm";
 import type { Book, BookSearchResult } from "@/types/book";
 
 type ScanMode = "barcode" | "cover" | "manual";
+type CoverSearchStep = "input" | "searching" | "results";
 
 export default function ScanScreen() {
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermissionNative] = useCameraPermissions();
+  const [webPermissionGranted, setWebPermissionGranted] = useState<boolean | null>(null);
   const [mode, setMode] = useState<ScanMode>("barcode");
   const [torch, setTorch] = useState(false);
   const [scannedData, setScannedData] = useState<BookSearchResult | null>(null);
@@ -38,6 +40,8 @@ export default function ScanScreen() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [manualISBN, setManualISBN] = useState("");
+  const [coverQuery, setCoverQuery] = useState("");
+  const [coverStep, setCoverStep] = useState<CoverSearchStep>("input");
   const scannedRef = useRef(false);
 
   const { addBook } = useLibraryStore();
@@ -74,7 +78,26 @@ export default function ScanScreen() {
     setIsLoading(false);
   };
 
-  const handleCoverSearch = async () => {
+  const handleCoverTextSearch = async () => {
+    if (!coverQuery.trim()) {
+      Alert.alert("Error", "Enter the title or author from the cover.");
+      return;
+    }
+    setCoverStep("searching");
+    setIsLoading(true);
+    const results = await searchByText(coverQuery.trim());
+    if (results.length > 0) {
+      setSearchResults(results);
+      setShowSearchResults(true);
+      setCoverStep("results");
+    } else {
+      Alert.alert("No Results", "No books found. Try different keywords.");
+      setCoverStep("input");
+    }
+    setIsLoading(false);
+  };
+
+  const handleCoverPhotoSearch = async () => {
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
       quality: 0.8,
@@ -82,12 +105,18 @@ export default function ScanScreen() {
 
     if (!result.canceled && result.assets[0]) {
       setIsLoading(true);
+      setCoverStep("searching");
       const results = await searchByOCR(result.assets[0].uri);
       if (results.length > 0) {
         setSearchResults(results);
         setShowSearchResults(true);
+        setCoverStep("results");
       } else {
-        Alert.alert("No Results", "Could not identify the book from the cover. Try manual entry.");
+        Alert.alert(
+          "OCR Failed",
+          "Could not read text from the photo. Please type the title/author manually below."
+        );
+        setCoverStep("input");
       }
       setIsLoading(false);
     }
@@ -126,7 +155,27 @@ export default function ScanScreen() {
     Alert.alert("Added!", `"${book.title}" has been added to your library.`);
   };
 
-  if (!permission) {
+  const requestPermission = useCallback(async () => {
+    if (Platform.OS === "web") {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach((t) => t.stop());
+        setWebPermissionGranted(true);
+      } catch {
+        setWebPermissionGranted(false);
+        Alert.alert("Permission Denied", "Camera access was denied. Please allow it in your browser settings and reload.");
+      }
+    } else {
+      await requestPermissionNative();
+    }
+  }, [requestPermissionNative]);
+
+  const isGranted =
+    Platform.OS === "web" ? webPermissionGranted === true : permission?.granted === true;
+  const isLoaded =
+    Platform.OS === "web" ? true : permission !== null;
+
+  if (!isLoaded) {
     return (
       <View className="flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900">
         <ActivityIndicator size="large" color="#3b82f6" />
@@ -134,7 +183,7 @@ export default function ScanScreen() {
     );
   }
 
-  if (!permission.granted) {
+  if (!isGranted) {
     return (
       <View className="flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900 px-6">
         <Ionicons
@@ -196,6 +245,8 @@ export default function ScanScreen() {
             style={{ flex: 1 }}
             facing="back"
             enableTorch={torch}
+            autofocus="on"
+            zoom={0}
             barcodeScannerSettings={{
               barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"],
             }}
@@ -231,36 +282,75 @@ export default function ScanScreen() {
 
       {/* Cover search mode */}
       {mode === "cover" && (
-        <View className="flex-1 items-center justify-center px-6">
+        <ScrollView className="flex-1 px-4 pt-6" contentContainerStyle={{ alignItems: "center" }}>
           <Ionicons
             name="image"
-            size={64}
+            size={48}
             color={isDark ? "#60a5fa" : "#3b82f6"}
           />
-          <Text className="text-gray-900 dark:text-white text-lg font-bold mt-4">
+          <Text className="text-gray-900 dark:text-white text-lg font-bold mt-3">
             Search by Cover
           </Text>
-          <Text className="text-gray-500 dark:text-gray-400 text-center mt-2">
-            Take a photo of the book cover.{"\n"}We'll try to identify it using
-            text recognition.
+          <Text className="text-gray-500 dark:text-gray-400 text-center mt-1 mb-6">
+            Type the title or author you see on the cover, or try a photo.
           </Text>
+
+          {/* Text search input */}
+          <View className="w-full bg-white dark:bg-gray-800 rounded-xl p-4 mb-4">
+            <Text className="text-gray-700 dark:text-gray-300 font-medium mb-2">
+              Title / Author from cover
+            </Text>
+            <View className="flex-row items-center">
+              <TextInput
+                value={coverQuery}
+                onChangeText={setCoverQuery}
+                placeholder='e.g. "The Great Gatsby Fitzgerald"'
+                placeholderTextColor={isDark ? "#64748b" : "#94a3b8"}
+                className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-3 text-gray-900 dark:text-white mr-2"
+                onSubmitEditing={handleCoverTextSearch}
+              />
+              <Pressable
+                onPress={handleCoverTextSearch}
+                className="bg-blue-500 rounded-lg px-4 py-3"
+                disabled={isLoading}
+              >
+                {isLoading && coverStep === "searching" ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Ionicons name="search" size={20} color="white" />
+                )}
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Divider */}
+          <View className="flex-row items-center w-full mb-4">
+            <View className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+            <Text className="text-gray-400 dark:text-gray-500 mx-3 text-sm">OR</Text>
+            <View className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+          </View>
+
+          {/* Photo OCR button */}
           <Pressable
-            onPress={handleCoverSearch}
-            className="bg-blue-500 active:bg-blue-600 rounded-xl px-8 py-4 mt-6 flex-row items-center"
+            onPress={handleCoverPhotoSearch}
+            className="w-full bg-white dark:bg-gray-800 rounded-xl p-4 flex-row items-center justify-center"
             disabled={isLoading}
           >
-            {isLoading ? (
-              <ActivityIndicator color="white" />
+            {isLoading && coverStep === "searching" ? (
+              <ActivityIndicator color="#3b82f6" />
             ) : (
               <>
-                <Ionicons name="camera" size={24} color="white" />
-                <Text className="text-white font-bold ml-2">
-                  Take Photo
+                <Ionicons name="camera" size={22} color={isDark ? "#60a5fa" : "#3b82f6"} />
+                <Text className="text-blue-500 font-bold ml-2">
+                  Take Photo & Auto-detect (OCR)
                 </Text>
               </>
             )}
           </Pressable>
-        </View>
+          <Text className="text-gray-400 dark:text-gray-500 text-xs text-center mt-2">
+            OCR works best with clear, well-lit text on the cover
+          </Text>
+        </ScrollView>
       )}
 
       {/* Manual mode */}
