@@ -10,6 +10,7 @@ import {
   Image,
   Modal,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/utils/theme";
 import { useLibraryStore } from "@/store/useLibraryStore";
@@ -34,9 +35,42 @@ export function ManualAddForm({ onClose }: Props) {
   const [pageCount, setPageCount] = useState("");
   const [series, setSeries] = useState("");
   const [seriesNumber, setSeriesNumber] = useState("");
+  const [coverBase64, setCoverBase64] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<BookSearchResult[]>([]);
   const [showResults, setShowResults] = useState(false);
+
+  const pickCoverFromCamera = async () => {
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      quality: 0.7,
+      allowsEditing: true,
+      aspect: [2, 3],
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      if (asset.base64) {
+        setCoverBase64(`data:image/jpeg;base64,${asset.base64}`);
+      }
+    }
+  };
+
+  const pickCoverFromGallery = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.7,
+      allowsEditing: true,
+      aspect: [2, 3],
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      if (asset.base64) {
+        setCoverBase64(`data:image/jpeg;base64,${asset.base64}`);
+      }
+    }
+  };
 
   const handleSearchByTitle = async () => {
     if (!title.trim()) {
@@ -88,7 +122,7 @@ export function ManualAddForm({ onClose }: Props) {
       series: series.trim(),
       seriesNumber: seriesNumber.trim(),
       coverUrl: "",
-      coverBase64: "",
+      coverBase64,
       averageRating: null,
       ratingsCount: null,
       isRead: false,
@@ -199,6 +233,56 @@ export function ManualAddForm({ onClose }: Props) {
           isDark={isDark}
           keyboardType="numeric"
         />
+
+        {/* Cover Image */}
+        <View className="mb-4">
+          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-2">
+            Cover Image
+          </Text>
+          {coverBase64 ? (
+            <View className="items-center">
+              <Image
+                source={{ uri: coverBase64 }}
+                className="w-32 h-48 rounded-lg mb-2"
+                resizeMode="cover"
+              />
+              <Pressable onPress={() => setCoverBase64("")}>
+                <Text className="text-red-500 text-sm font-medium">
+                  Remove Cover
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View className="flex-row gap-3">
+              <Pressable
+                onPress={pickCoverFromCamera}
+                className="flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg py-3 items-center flex-row justify-center"
+              >
+                <Ionicons
+                  name="camera"
+                  size={20}
+                  color={isDark ? "#60a5fa" : "#3b82f6"}
+                />
+                <Text className="text-gray-700 dark:text-gray-300 font-medium ml-2">
+                  Take Photo
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={pickCoverFromGallery}
+                className="flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg py-3 items-center flex-row justify-center"
+              >
+                <Ionicons
+                  name="images"
+                  size={20}
+                  color={isDark ? "#60a5fa" : "#3b82f6"}
+                />
+                <Text className="text-gray-700 dark:text-gray-300 font-medium ml-2">
+                  Gallery
+                </Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
 
         <View className="h-8" />
       </ScrollView>
