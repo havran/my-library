@@ -7,7 +7,21 @@
       "Bash(npx expo export:*)",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git -C /home/havran/claude-code/my-library status)",
+      "Bash(git -C /home/havran/claude-code/my-library diff)",
+      "Bash(git -C /home/havran/claude-code/my-library log --oneline -5)",
+      "Bash(git -C /home/havran/claude-code/my-library add components/ManualAddForm.tsx)",
+      "Bash(git -C:*)",
+      "Bash(pkill:*)",
+      "Bash(ss:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "WebFetch(domain:edeposit-amqp-aleph.readthedocs.io)",
+      "WebFetch(domain:api.trhknih.cz)",
+      "WebFetch(domain:obalkyknih.cz)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
