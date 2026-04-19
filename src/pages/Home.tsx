@@ -75,7 +75,7 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
+          <div className="flex items-start gap-3 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
             {recentBooks.map((book) => {
               const cover = book.coverBase64 || book.coverUrl;
               return (

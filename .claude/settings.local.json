@@ -21,7 +21,43 @@
       "WebFetch(domain:edeposit-amqp-aleph.readthedocs.io)",
       "WebFetch(domain:api.trhknih.cz)",
       "WebFetch(domain:obalkyknih.cz)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(fuser -k 5173/tcp)",
+      "Bash(npm audit *)",
+      "Bash(npm show *)",
+      "Bash(python3 -c \"import sys,json; v=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(v[-10:]\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; v=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(v[-5:]\\)\\)\")",
+      "Bash(awk '{print $1}')",
+      "Bash(curl -s http://172.25.142.153:5173)",
+      "Bash(ip addr *)",
+      "Bash(ssh *)",
+      "Bash(rsync *)",
+      "Skill(update-config)",
+      "Bash(bash -c 'npm run build 2>&1 | tail -3')",
+      "Bash(npm ls *)",
+      "WebFetch(domain:www.cbdb.cz)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Read(//tmp/**)",
+      "Bash(node *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /home/havran/claude-code/my-library && npm run build && rsync -avz --delete dist/ havran@192.168.1.141:~/my-library/dist/ 2>/dev/null; rsync -avz server/ havran@192.168.1.141:~/my-library/server/ 2>/dev/null; rsync -avz package.json package-lock.json havran@192.168.1.141:~/my-library/ 2>/dev/null; true",
+            "timeout": 120,
+            "statusMessage": "Building & syncing to server...",
+            "async": true
+          }
+        ]
+      }
     ]
   }
 }

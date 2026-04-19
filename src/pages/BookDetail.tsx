@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Trash2, BookOpen, Star, CheckCircle2, Circle, Camera, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Trash2, BookOpen, Star, CheckCircle2, Circle, Camera, Image as ImageIcon, Search, RefreshCw } from "lucide-react";
 import { useLibraryStore } from "@/store/useLibraryStore";
 import { GenreBadge } from "@/components/GenreBadge";
+import { CoverPicker } from "@/components/CoverPicker";
+import { searchAllCovers, downloadCover } from "@/services/coverSearch";
+import { fetchByISBN } from "@/services/bookApi";
 
 const inputCls =
   "w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow";
@@ -28,8 +31,13 @@ export default function BookDetail() {
   const [seriesNumber, setSeriesNumber] = useState("");
   const [isRead, setIsRead] = useState(false);
   const [customCover, setCustomCover] = useState("");
+  const [searchingCover, setSearchingCover] = useState(false);
+  const [coverNotFound, setCoverNotFound] = useState(false);
+  const [coverOptions, setCoverOptions] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [rescanning, setRescanning] = useState(false);
+  const [rescanResult, setRescanResult] = useState<"updated" | "no-change" | "error" | null>(null);
 
   useEffect(() => {
     if (book) {
@@ -68,6 +76,67 @@ export default function BookDetail() {
   const handleDelete = async () => {
     await deleteBook(book.id);
     navigate("/library");
+  };
+
+  const handleRescan = async () => {
+    if (!book.isbn) return;
+    setRescanning(true);
+    setRescanResult(null);
+    try {
+      const [fresh, covers] = await Promise.all([
+        fetchByISBN(book.isbn),
+        searchAllCovers(book.isbn, book.title),
+      ]);
+
+      if (!fresh && covers.length === 0) { setRescanResult("error"); return; }
+
+      const changes: Record<string, any> = {};
+      if (fresh) {
+        if (fresh.authors.length && fresh.authors.join() !== book.authors.join()) changes.authors = fresh.authors;
+        if (fresh.genres.length && fresh.genres.join() !== book.genres.join()) changes.genres = fresh.genres;
+        if (fresh.description && fresh.description !== book.description) changes.description = fresh.description;
+        if (fresh.publisher && fresh.publisher !== book.publisher) changes.publisher = fresh.publisher;
+        if (fresh.pageCount && fresh.pageCount !== book.pageCount) changes.pageCount = fresh.pageCount;
+        if (fresh.averageRating != null) changes.averageRating = fresh.averageRating;
+        if (fresh.ratingsCount != null) changes.ratingsCount = fresh.ratingsCount;
+        if (fresh.series && !book.series) { changes.series = fresh.series; setSeries(fresh.series); }
+        if (fresh.seriesNumber && !book.seriesNumber) { changes.seriesNumber = fresh.seriesNumber; setSeriesNumber(fresh.seriesNumber); }
+      }
+
+      if (Object.keys(changes).length > 0) {
+        await updateBook(book.id, changes);
+        setRescanResult("updated");
+      } else {
+        setRescanResult("no-change");
+      }
+
+      // Always offer cover picker so user can pick or replace the cover
+      if (covers.length > 0) setCoverOptions(covers);
+    } catch {
+      setRescanResult("error");
+    } finally {
+      setRescanning(false);
+      setTimeout(() => setRescanResult(null), 3000);
+    }
+  };
+
+  const findCoverOnline = async () => {
+    setSearchingCover(true);
+    setCoverNotFound(false);
+    const found = await searchAllCovers(book.isbn ?? "", book.title);
+    setSearchingCover(false);
+    if (found.length === 0) {
+      setCoverNotFound(true);
+      setTimeout(() => setCoverNotFound(false), 3000);
+    } else {
+      setCoverOptions(found);
+    }
+  };
+
+  const handlePickCover = async (url: string) => {
+    setCoverOptions([]);
+    const base64 = await downloadCover(url);
+    setCustomCover(base64 || url);
   };
 
   const pickCover = (capture?: "environment") => {
@@ -124,6 +193,41 @@ export default function BookDetail() {
             >
               <ImageIcon size={16} />
             </button>
+            <button
+              onClick={findCoverOnline}
+              disabled={searchingCover}
+              title={coverNotFound ? "Cover not found" : "Search cover online"}
+              className={`p-2 rounded-xl transition-colors text-sm font-medium ${
+                coverNotFound
+                  ? "bg-red-50 dark:bg-red-900/20 text-red-500"
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-500"
+              } disabled:opacity-50`}
+            >
+              {searchingCover
+                ? <span className="block w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                : <Search size={16} />
+              }
+            </button>
+            {book.isbn && (
+              <button
+                onClick={handleRescan}
+                disabled={rescanning}
+                title={
+                  rescanResult === "updated" ? "Metadata updated!" :
+                  rescanResult === "no-change" ? "Already up to date" :
+                  rescanResult === "error" ? "Rescan failed" :
+                  "Rescan metadata & cover"
+                }
+                className={`p-2 rounded-xl transition-colors text-sm font-medium disabled:opacity-50 ${
+                  rescanResult === "updated" ? "bg-green-50 dark:bg-green-900/20 text-green-500" :
+                  rescanResult === "no-change" ? "bg-gray-100 dark:bg-gray-800 text-gray-400" :
+                  rescanResult === "error" ? "bg-red-50 dark:bg-red-900/20 text-red-500" :
+                  "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-500"
+                }`}
+              >
+                <RefreshCw size={16} className={rescanning ? "animate-spin" : ""} />
+              </button>
+            )}
             {customCover && (
               <button
                 onClick={() => setCustomCover("")}
@@ -140,9 +244,15 @@ export default function BookDetail() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-tight mb-1">
             {book.title}
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 text-base mb-3">
+          <p className="text-gray-500 dark:text-gray-400 text-base mb-1">
             {book.authors.join(", ") || "Unknown Author"}
           </p>
+
+          {(series || seriesNumber) && (
+            <p className="text-sm font-semibold text-blue-500 dark:text-blue-400 mb-3">
+              {series}{seriesNumber ? ` #${seriesNumber}` : ""}
+            </p>
+          )}
 
           {book.genres.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
@@ -277,6 +387,14 @@ export default function BookDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {coverOptions.length > 0 && (
+        <CoverPicker
+          covers={coverOptions}
+          onSelect={handlePickCover}
+          onClose={() => setCoverOptions([])}
+        />
       )}
     </div>
   );

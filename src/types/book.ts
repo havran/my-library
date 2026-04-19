@@ -34,4 +34,7 @@ export interface BookSearchResult {
   coverUrl: string;
   averageRating: number | null;
   ratingsCount: number | null;
+  series?: string;
+  seriesNumber?: string;
+  serieSlug?: string;
 }

@@ -56,7 +56,7 @@ export default function Library() {
           <p>No books match your search.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
           {displayed.map((book) => (
             <div key={book.id} className="relative group">
               <BookCard book={book} />

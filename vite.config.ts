@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 
@@ -9,6 +10,7 @@ const __dirname = dirname(__filename);
 
 export default defineConfig({
   plugins: [
+    basicSsl(),
     react(),
     VitePWA({
       registerType: "autoUpdate",
@@ -47,6 +49,11 @@ export default defineConfig({
   ],
   resolve: {
     alias: { "@": resolve(__dirname, "./src") },
+  },
+  server: {
+    proxy: {
+      "/api": "http://localhost:3001",
+    },
   },
   build: {
     rollupOptions: {

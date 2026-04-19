@@ -4,10 +4,12 @@ const GOOGLE_BOOKS_BASE = "https://www.googleapis.com/books/v1/volumes";
 const OPEN_LIBRARY_BASE = "https://openlibrary.org";
 // Czech National Library – public Aleph X-Server, no API key required
 const NKP_ALEPH_BASE = "https://aleph.nkp.cz/X";
+// cbdb.cz — Czech book database, via server-side proxy (avoids CORS/bot-detection)
+const CBDB_PROXY = "/api/cbdb";
 
 // ── Google Books ──────────────────────────────────────────────────────────────
 
-function parseGoogleBook(item: any): BookSearchResult {
+export function parseGoogleBook(item: any): BookSearchResult {
   const v = item.volumeInfo || {};
   const identifiers = v.industryIdentifiers || [];
   const isbn13 = identifiers.find((i: any) => i.type === "ISBN_13");
@@ -143,42 +145,95 @@ async function fetchFromOpenLibrary(isbn: string): Promise<BookSearchResult | nu
   };
 }
 
+// ── cbdb.cz (via server proxy) ────────────────────────────────────────────────
+
+async function fetchFromCbdb(isbn: string): Promise<BookSearchResult | null> {
+  const res = await fetch(`${CBDB_PROXY}?isbn=${encodeURIComponent(isbn)}`);
+  if (!res.ok) return null;
+  const d = await res.json();
+  if (!d?.title) return null;
+  return {
+    isbn: d.isbn ?? isbn,
+    title: d.title,
+    authors: d.authors ?? [],
+    genres: d.genres ?? [],
+    description: d.description ?? "",
+    publisher: d.publisher ?? "",
+    pageCount: d.pageCount ?? null,
+    coverUrl: d.coverUrl ?? "",
+    averageRating: d.averageRating ?? null,
+    ratingsCount: d.ratingsCount ?? null,
+  };
+}
+
+// ── legie.info (via server proxy) ────────────────────────────────────────────
+
+interface LegieResult {
+  title: string;
+  authors: string[];
+  coverUrl: string;
+  genres: string[];
+  averageRating: number | null;
+  ratingsCount: number | null;
+  series: string;
+  seriesNumber: string;
+  serieSlug: string;
+  description: string;
+}
+
+async function fetchFromLegie(title: string): Promise<LegieResult | null> {
+  if (!title) return null;
+  const res = await fetch(`/api/legie?title=${encodeURIComponent(title)}`);
+  if (!res.ok) return null;
+  const d = await res.json();
+  if (!d?.title) return null;
+  return d as LegieResult;
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
-/**
- * Fetch book by ISBN.
- * Fallback chain: Google Books → Open Library → NKP Czech National Library
- */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return promise
+    .then((v) => { clearTimeout(timer); return v; })
+    .catch((e) => { clearTimeout(timer); console.warn(`${label} failed:`, e); return null; });
+}
+
 export async function fetchByISBN(isbn: string): Promise<BookSearchResult | null> {
-  // 1. Google Books
-  try {
-    const res = await fetch(`${GOOGLE_BOOKS_BASE}?q=isbn:${isbn}&maxResults=1`);
-    const data = await res.json();
-    if (data.totalItems > 0 && data.items?.[0]) {
-      return parseGoogleBook(data.items[0]);
-    }
-  } catch (e) {
-    console.warn("Google Books failed:", e);
-  }
+  const [google, openLib, nkp, cbdb] = await Promise.all([
+    withTimeout(
+      fetch(`${GOOGLE_BOOKS_BASE}?q=isbn:${isbn}&maxResults=1`).then(async (res) => {
+        const data = await res.json();
+        return data.totalItems > 0 && data.items?.[0] ? parseGoogleBook(data.items[0]) : null;
+      }),
+      6000, "Google Books"
+    ),
+    withTimeout(fetchFromOpenLibrary(isbn), 6000, "Open Library"),
+    withTimeout(fetchFromNKP(isbn), 10000, "NKP Aleph"),
+    withTimeout(fetchFromCbdb(isbn), 10000, "cbdb.cz"),
+  ]);
 
-  // 2. Open Library
-  try {
-    const result = await fetchFromOpenLibrary(isbn);
-    if (result) return result;
-  } catch (e) {
-    console.warn("Open Library failed:", e);
-  }
+  // Priority for metadata: cbdb > NKP > Google > OpenLibrary
+  const base = cbdb ?? nkp ?? google ?? openLib;
+  if (!base) return null;
 
-  // 3. Czech National Library (NKP) — covers Czech & Slovak books not in global databases
-  try {
-    const result = await fetchFromNKP(isbn);
-    if (result) return result;
-  } catch (e) {
-    // NKP may reject cross-origin requests in some environments
-    console.warn("NKP Aleph failed:", e);
-  }
+  const bestCover = cbdb?.coverUrl || google?.coverUrl || openLib?.coverUrl || "";
 
-  return null;
+  // Enrich with legie.info (rating, Czech genre tags, series, cover)
+  const legie = await withTimeout(fetchFromLegie(base.title), 10000, "legie.info");
+
+  return {
+    ...base,
+    coverUrl: legie?.coverUrl || bestCover,
+    genres: legie?.genres?.length ? legie.genres : base.genres,
+    averageRating: legie?.averageRating ?? base.averageRating,
+    ratingsCount: legie?.ratingsCount ?? base.ratingsCount,
+    description: base.description || legie?.description || "",
+    series: (base as any).series || legie?.series || "",
+    seriesNumber: (base as any).seriesNumber || legie?.seriesNumber || "",
+    serieSlug: legie?.serieSlug || "",
+  };
 }
 
 export async function searchByTitle(query: string): Promise<BookSearchResult[]> {
