@@ -9,13 +9,7 @@ interface Props {
   onClose: () => void;
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-4">
       <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1.5">
@@ -68,7 +62,10 @@ export function ManualAddForm({ onClose }: Props) {
   };
 
   const handleTitleSearch = async () => {
-    if (!title.trim()) { showToast("Enter a title to search."); return; }
+    if (!title.trim()) {
+      showToast("Enter a title to search.");
+      return;
+    }
     setIsSearching(true);
     const results = await searchByTitle(title.trim());
     setIsSearching(false);
@@ -102,14 +99,23 @@ export function ManualAddForm({ onClose }: Props) {
   };
 
   const handleSave = async () => {
-    if (!title.trim()) { showToast("Title is required."); return; }
+    if (!title.trim()) {
+      showToast("Title is required.");
+      return;
+    }
     setIsSaving(true);
     const book: Book = {
       id: generateId(),
       isbn: null,
       title: title.trim(),
-      authors: authors.split(",").map((a) => a.trim()).filter(Boolean),
-      genres: genres.split(",").map((g) => g.trim()).filter(Boolean),
+      authors: authors
+        .split(",")
+        .map((a) => a.trim())
+        .filter(Boolean),
+      genres: genres
+        .split(",")
+        .map((g) => g.trim())
+        .filter(Boolean),
       description: description.trim(),
       publisher: publisher.trim(),
       pageCount: pageCount ? parseInt(pageCount, 10) : null,
@@ -319,10 +325,16 @@ export function ManualAddForm({ onClose }: Props) {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{r.title}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{r.authors.join(", ")}</p>
+                    <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                      {r.title}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {r.authors.join(", ")}
+                    </p>
                     {r.publisher && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{r.publisher}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                        {r.publisher}
+                      </p>
                     )}
                   </div>
                 </button>

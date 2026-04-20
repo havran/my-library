@@ -41,9 +41,27 @@ describe("generateId", () => {
 
 describe("sortBooks", () => {
   const books = [
-    makeBook({ id: "1", title: "Zebra", authors: ["Charlie"], genres: ["Sci-Fi"], addedAt: "2024-01-03T00:00:00.000Z" }),
-    makeBook({ id: "2", title: "Apple", authors: ["Alice"], genres: ["Fiction"], addedAt: "2024-01-01T00:00:00.000Z" }),
-    makeBook({ id: "3", title: "Mango", authors: ["Bob"], genres: ["Horror"], addedAt: "2024-01-02T00:00:00.000Z" }),
+    makeBook({
+      id: "1",
+      title: "Zebra",
+      authors: ["Charlie"],
+      genres: ["Sci-Fi"],
+      addedAt: "2024-01-03T00:00:00.000Z",
+    }),
+    makeBook({
+      id: "2",
+      title: "Apple",
+      authors: ["Alice"],
+      genres: ["Fiction"],
+      addedAt: "2024-01-01T00:00:00.000Z",
+    }),
+    makeBook({
+      id: "3",
+      title: "Mango",
+      authors: ["Bob"],
+      genres: ["Horror"],
+      addedAt: "2024-01-02T00:00:00.000Z",
+    }),
   ];
 
   it("sorts by title ascending", () => {
@@ -102,9 +120,20 @@ describe("sortBooks", () => {
 
 describe("filterBooks", () => {
   const books = [
-    makeBook({ id: "1", title: "The Hobbit", authors: ["J.R.R. Tolkien"], genres: ["Fantasy"], isbn: "9780261102217" }),
+    makeBook({
+      id: "1",
+      title: "The Hobbit",
+      authors: ["J.R.R. Tolkien"],
+      genres: ["Fantasy"],
+      isbn: "9780261102217",
+    }),
     makeBook({ id: "2", title: "Dune", authors: ["Frank Herbert"], genres: ["Sci-Fi"] }),
-    makeBook({ id: "3", title: "Neuromancer", authors: ["William Gibson"], genres: ["Cyberpunk", "Sci-Fi"] }),
+    makeBook({
+      id: "3",
+      title: "Neuromancer",
+      authors: ["William Gibson"],
+      genres: ["Cyberpunk", "Sci-Fi"],
+    }),
   ];
 
   it("returns all books for empty query", () => {
@@ -157,18 +186,12 @@ describe("getGenreCounts", () => {
   });
 
   it("counts a single genre across multiple books", () => {
-    const books = [
-      makeBook({ genres: ["Fiction"] }),
-      makeBook({ genres: ["Fiction"] }),
-    ];
+    const books = [makeBook({ genres: ["Fiction"] }), makeBook({ genres: ["Fiction"] })];
     expect(getGenreCounts(books)).toEqual({ Fiction: 2 });
   });
 
   it("counts multiple genres per book independently", () => {
-    const books = [
-      makeBook({ genres: ["Fiction", "Romance"] }),
-      makeBook({ genres: ["Fiction"] }),
-    ];
+    const books = [makeBook({ genres: ["Fiction", "Romance"] }), makeBook({ genres: ["Fiction"] })];
     expect(getGenreCounts(books)).toEqual({ Fiction: 2, Romance: 1 });
   });
 

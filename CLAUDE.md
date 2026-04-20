@@ -8,52 +8,182 @@ See also [AGENT.md](./AGENT.md) for agent workflow patterns, common pitfalls, an
 
 **Dev server:** `ssh havran@192.168.1.141`
 
-After changes, sync the built output:
+After changes, sync the built output (and server code + deps, if changed):
+
 ```bash
-rsync -avz --delete dist/ havran@192.168.1.141:~/my-library/
+rsync -avz --delete dist/ havran@192.168.1.141:~/my-library/dist/
+rsync -avz server/ havran@192.168.1.141:~/my-library/server/
+rsync -avz package.json package-lock.json havran@192.168.1.141:~/my-library/  # whenever deps change
 ```
+
+**Important:** the `dist/` target has a trailing `/dist/` on the remote — dropping it makes `--delete` wipe everything else in `~/my-library/` (server/, node_modules/, etc.).
+
+Or just `npm run deploy` — it builds and rsyncs all three. Remote still needs `npm install` if package files changed.
+
+The server process on the dev host serves both the built SPA (`dist/`) and the `/api/*` endpoints, reusing the same HTTPS listener on port 3001.
 
 ## Commands
 
 ```bash
-npm run dev       # start Vite dev server (hot reload)
-npm run build     # tsc type-check + Vite production build
-npm run preview   # serve the production build locally
-npx tsc --noEmit  # type-check only, no build
+npm run dev          # concurrently runs Vite (hot reload) + tsx watch on server
+npm run server       # Express API + static server only (port 3001, HTTPS if certs present)
+npm run build        # tsc -b + Vite production build
+npm run preview      # serve the production build locally
+npx tsc --noEmit     # type-check only
+
+npm run test         # vitest (watch mode)
+npm run test:run     # vitest one-shot
+npm run test:coverage  # vitest with v8 coverage
 ```
 
-There are no tests or linting scripts configured.
+No linter is configured.
 
 ## Architecture
 
-### Stack
-- **Vite 6 + React 19** — SPA, no SSR
-- **React Router v7** — client-side routing (`BrowserRouter`)
+This is a **client-server app**, not a pure SPA. The React frontend talks to a local Express backend over `/api/*` for all persistence and for CORS/bot-blocked third-party sources.
+
+### Stack — frontend (`src/`)
+
+- **Vite 6 + React 19** — SPA shell, no SSR
+- **React Router v7** — `BrowserRouter`, client-side routing
 - **Tailwind CSS v3** — `darkMode: "class"` (toggled via `document.documentElement.classList`)
-- **Dexie v4** — IndexedDB wrapper; single database `MyLibraryDB`, one `books` table
 - **Zustand v5** — global state; single store `useLibraryStore`
 - **vite-plugin-pwa + Workbox** — service worker, offline support, installable PWA
+- **@vitejs/plugin-basic-ssl** — dev server uses self-signed HTTPS (needed for `getUserMedia` and PWA install)
+
+### Stack — backend (`server/`)
+
+- **Express 5** on port 3001
+- **better-sqlite3** for persistence (synchronous API, WAL journal mode)
+- **sharp** for ISBN-image preprocessing before OCR
+- **tesseract.js** for server-side ISBN OCR
+- **pino + pino-http** for structured logging (pretty-printed in dev, JSON in prod; `LOG_LEVEL` env var)
+- **express-rate-limit** tiered per route group (see Rate limiting below)
+- **bcryptjs + jsonwebtoken + cookie-parser** for authentication (JWT in an httpOnly cookie; see Authentication below)
+- **HTTPS** if `cert.pem` + `key.pem` are present in `~/.local/share/my-library/` (alongside the DB so they survive rsync deploys), HTTP otherwise
 
 ### Path alias
-`@/` maps to `./src/` (configured in both `vite.config.ts` and `tsconfig.json`).
+
+`@/` maps to `./src/` (configured in `vite.config.ts`, `tsconfig.json`, and `vitest.config.ts`).
+
+### Storage
+
+**SQLite** database at `~/.local/share/my-library/library.db` (`process.env.HOME` + `.local/share/my-library/`). Tables:
+
+- **`books`** — schema in [server/db.ts](server/db.ts) mirrors the [Book](src/types/book.ts#L1-L21) interface, with `authors`/`genres` stored as JSON strings and `isRead` as 0/1.
+- **`users`** — `id`, `username` (unique), `passwordHash` (bcrypt), `role`, timestamps. Admin is seeded on first boot (see Authentication).
+
+On startup the server copies `library.db` to `~/.local/share/my-library/backups/library-YYYY-MM-DD.db` (idempotent — one backup per calendar day). The JWT signing secret lives beside the DB at `~/.local/share/my-library/jwt-secret` (0600); override via `JWT_SECRET` env var.
 
 ### Data flow
-1. On app load, `App.tsx` calls `useLibraryStore().loadBooks()` which reads all books from IndexedDB into the Zustand store.
-2. All subsequent reads come from the in-memory Zustand `books` array (no re-querying Dexie).
-3. Writes hit Dexie first, then update the Zustand state optimistically — keeping store and DB in sync.
-4. Cover images are fetched as base64 via `src/services/imageCache.ts` and stored in the `coverBase64` field so they work offline.
+
+1. App load → `App.tsx` calls `useLibraryStore().loadBooks()` → `GET /api/books` → populates Zustand `books` array.
+2. All subsequent reads come from the in-memory Zustand array (no re-querying the API).
+3. Writes are optimistic: Zustand updates immediately, `src/db/database.ts` sends the HTTP request, the server persists to SQLite.
+4. Cover images are fetched as base64 via `src/services/imageCache.ts` and stored in `coverBase64` so they work offline. `coverUrl` is kept for re-fetch scenarios.
+
+### Server layout
+
+Routes are split into Express routers that mirror the frontend plugin layout:
+
+```
+server/
+  index.ts                     # app setup, HTTPS, router mounting
+  db.ts                        # SQLite (better-sqlite3) read/write helpers (books + users)
+  http.ts                      # rateLimitedFetch + CZ_BROWSER_HEADERS (shared outbound)
+  logger.ts                    # pino instance (pretty in dev, JSON in prod)
+  auth.ts                      # JWT sign/verify, bcrypt hash/verify, requireAuth + attachUser
+  auth.test.ts                 # unit tests for token, hash, middleware
+  middleware/
+    rateLimit.ts               # tiered express-rate-limit instances
+  routes/
+    auth.ts                    # /api/auth/{login,logout,me,password}
+    books.ts                   # CRUD + search + export + import (writes require auth)
+    isbnOcr.ts                 # /api/isbn-ocr, extractISBN() exported for tests
+    clientError.ts             # /api/log/client — receives frontend error reports
+    sources/
+      cbdb.ts                  # /api/cbdb — parseCbdbBookPage, parseCbdbSearchLinks
+      legie.ts                 # /api/legie + /api/legie/serie — parseLegieBookPage, parseLegieEditions, …
+      cbdb.test.ts             # parser unit tests (HTML fixtures)
+      legie.test.ts            # parser unit tests (HTML fixtures)
+    isbnOcr.test.ts            # extractISBN() tests
+```
+
+Pure parser functions are exported so Vitest can test them against minimal HTML fixtures without hitting the network. Route handlers stay in the same file as their parsers for locality.
+
+### API endpoints
+
+Auth — `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/password` (all except `/me` are explicit user actions; `/me` is a lightweight probe).
+
+Book CRUD — `GET|POST /api/books`, `GET|PUT|DELETE /api/books/:id`, `GET /api/books/search?q=`, `DELETE /api/books`, `GET /api/export`, `POST /api/import`. **GETs on `/api/books` are public; all other book routes require auth.**
+
+Third-party proxies (avoid CORS and bot-detection from the browser) — **all require auth**:
+
+- `GET /api/cbdb?isbn=` or `?q=` — scrapes cbdb.cz, returns a parsed book record.
+- `GET /api/legie?title=` | `?isbn=` | `?slug=` — scrapes legie.info (book info + edition covers). Returns `{ ...book, editions, coverUrls }`.
+- `GET /api/legie/serie?slug=` — scrapes a series page, returns ordered book list.
+- `POST /api/isbn-ocr` with base64 `{ image }` — Tesseract OCR tuned for ISBN digits (numeric whitelist, sparse-text PSM). Tries normal + inverted in parallel. Returns `{ isbn, partial }`.
+- `POST /api/log/client` with `{ level?, message, stack?, url?, context? }` — frontend-error sink, **public** (unauthenticated errors on the login page still need to reach us). Logged via pino with `source: "client"`. The browser posts to this automatically via [src/services/errorReporter.ts](src/services/errorReporter.ts) (global `window.error` + `unhandledrejection` handlers, sendBeacon-first with fetch fallback, 5 s dedup window).
+
+All third-party scraping goes through [server/http.ts](server/http.ts)' per-host 1-second `rateLimitedFetch` to stay polite. Custom `User-Agent` + `Accept-Language: cs-CZ` headers from `CZ_BROWSER_HEADERS` are sent to cbdb/legie.
+
+### Rate limiting
+
+Inbound limits (per IP, 1 minute windows) defined in [server/middleware/rateLimit.ts](server/middleware/rateLimit.ts):
+
+| Limiter              | Limit   | Applied to                                           |
+| -------------------- | ------- | ---------------------------------------------------- |
+| `globalLimiter`      | 300/min | `/api/*` (ceiling)                                   |
+| `writeLimiter`       | 60/min  | `/api/books`, `/api/import` — skips GET/HEAD/OPTIONS |
+| `scraperLimiter`     | 60/min  | `/api/cbdb`, `/api/legie`                            |
+| `ocrLimiter`         | 20/min  | `/api/isbn-ocr`                                      |
+| `clientErrorLimiter` | 30/min  | `/api/log/client`                                    |
+
+`app.set("trust proxy", "loopback, linklocal, uniquelocal")` so the limiter sees the real client IP when fronted by a LAN reverse proxy.
+
+### Authentication
+
+Session cookie–based auth with a JWT payload:
+
+- **Seeding:** on first boot, if the `users` table is empty, an `admin` / `admin` user is inserted. The server logs a warning instructing the operator to change it immediately via Settings.
+- **Tokens:** [server/auth.ts](server/auth.ts) — `signToken`/`verifyToken` (jsonwebtoken, 30-day TTL), `hashPassword`/`verifyPassword` (bcryptjs, cost 10). The signing secret is read from `JWT_SECRET` if ≥16 chars, otherwise generated once and persisted to `~/.local/share/my-library/jwt-secret` (0600).
+- **Cookie:** `mylib_session`, `httpOnly`, `sameSite=lax`, `secure` mirrors the request (so dev HTTP still works). 30-day `maxAge`.
+- **Middleware:** `attachUser` runs on every `/api/*` request and populates `req.user` non-rejecting; `requireAuth` 401s when missing. Writes/scrapers/OCR are gated with `requireAuth` at router mount time (`server/index.ts`).
+- **Login route:** [server/routes/auth.ts](server/routes/auth.ts) always runs `bcrypt.compare` (against a dummy hash if username missing) to avoid leaking user existence via timing. A tight login limiter (20/15min, skip successful requests) sits in front.
+- **Frontend:** [src/store/useAuthStore.ts](src/store/useAuthStore.ts) (Zustand) wraps [src/services/auth.ts](src/services/auth.ts). `App.tsx` calls `loadMe()` on mount. [src/components/RequireAuth.tsx](src/components/RequireAuth.tsx) guards protected routes and redirects to `/login` preserving `from`. [src/services/apiFetch.ts](src/services/apiFetch.ts) wraps fetch: any 401 from `/api/*` clears local auth state so the next render bounces to login. The `/` route renders Library (public, read-only for guests); Stats, Settings, Scan, and BookDetail require auth.
+- **Password change:** Settings embeds [src/components/PasswordChangeCard.tsx](src/components/PasswordChangeCard.tsx) which calls `POST /api/auth/password`; the server validates the current password, enforces `newPassword.length >= 4`, and rotates the cookie.
+
+### Structured logging
+
+[server/logger.ts](server/logger.ts) exports a shared pino instance; [server/index.ts](server/index.ts) wires `pino-http` request middleware. Log level defaults to `debug` in dev / `info` in prod; override with `LOG_LEVEL=warn` etc. Prefer `logger.warn({ source, ...context }, "msg")` over `console.*` in server code so logs stay grep-able and JSON-parseable in prod.
 
 ### Routing
-`/scan` is outside the shared `<Layout>` (full-screen, no nav chrome). All other routes (`/`, `/library`, `/stats`, `/book/:id`) are nested inside `<Layout>`. All pages are lazy-loaded via `React.lazy()`.
 
-### Book lookup — fallback chain
-`src/services/bookApi.ts` — `fetchByISBN(isbn)`:
-1. **Google Books API** (`googleapis.com/books/v1/volumes`)
-2. **Open Library** (`openlibrary.org/api/books`)
-3. **NKP Czech National Library** — Aleph X-Server (`aleph.nkp.cz/X`), 2-step: `op=find` → `op=present`, returns OAI-MARC XML parsed with browser `DOMParser`; NKP does not provide cover images so `coverUrl` is `""` for NKP results.
+`/scan` and `/login` are outside the shared `<Layout>` (full-screen, no nav chrome). All other routes (`/`, `/library`, `/stats`, `/settings`, `/book/:id`) are nested inside `<Layout>`. `/` renders `Library` (the app's landing page is the collection itself). Stats, Settings, Scan, and BookDetail are wrapped in `<RequireAuth>`. All pages are lazy-loaded via `React.lazy()`.
 
-### Scan page (`src/pages/Scan.tsx`)
+### Book metadata plugin system
+
+All external book lookups go through a plugin registry, not a hardcoded fallback chain. See [src/services/plugins/](src/services/plugins/):
+
+- **[types.ts](src/services/plugins/types.ts)** — `BookSourcePlugin` interface with optional `searchByISBN`, `searchByTitle`, `searchByAuthor`, `searchBySeries`, `searchByText`, `findCovers`. Each plugin implements only what it supports.
+- **[registry.ts](src/services/plugins/registry.ts)** — `registerPlugin`, `pluginsFor(capability)`, plus a persisted Zustand store (`usePluginConfig`) holding user-defined order + disabled IDs. Persistence key: `my-library-plugin-config` in `localStorage`.
+- **[runner.ts](src/services/plugins/runner.ts)** — orchestrates parallel execution with per-plugin timeout. Merge strategy: for each field, take the value from the highest-priority candidate with a non-empty value. ISBN lookups run in two phases — phase 1 queries all ISBN-capable plugins; phase 2 uses the discovered title to run title-only enrichers (e.g. legie.info) whose results are then priority-sorted together.
+- **[sources/](src/services/plugins/sources/)** — one file per provider: `googleBooks`, `openLibrary`, `nkp`, `cbdb`, `legie`, `obalkyKnih`.
+- **[index.ts](src/services/plugins/index.ts)** — `BUILTIN_PLUGINS` default order (cbdb, nkp, googleBooks, openLibrary, legie, obalkyKnih) and `registerBuiltinPlugins()`, called once at app startup from `App.tsx`.
+- **[src/pages/Settings.tsx](src/pages/Settings.tsx)** — user-facing UI to reorder / enable / disable plugins.
+
+[src/services/bookApi.ts](src/services/bookApi.ts) and [src/services/coverSearch.ts](src/services/coverSearch.ts) are now thin wrappers that delegate to the runner. The public functions (`fetchByISBN`, `searchByTitle`, `searchByText`, `searchAllCovers`, etc.) are unchanged, so consumers don't need to know about plugins.
+
+Notes on individual sources:
+
+- **NKP** (Aleph X-Server, 2-step `op=find` → `op=present`, OAI-MARC XML parsed with browser `DOMParser`) does not provide covers.
+- **cbdb** and **legie** go through the local server proxy, so they only work when the backend is running.
+- **legie** is title-based (no ISBN endpoint), so it implements `searchByTitle` + `findCovers` and runs in phase 2 during ISBN lookups.
+
+### Scan page ([src/pages/Scan.tsx](src/pages/Scan.tsx))
+
 Three modes: `barcode` | `cover` | `manual`.
+
 - **barcode** — `@zxing/browser` `BrowserMultiFormatReader` (lazily imported inside `startBarcodeScanner()` to keep it out of the initial bundle); uses `barcodeVideoRef`.
 - **cover** — `getUserMedia` live camera stream, captures a canvas frame → Tesseract.js OCR (dynamically imported in `src/services/coverSearch.ts`) → `searchByText`; uses `coverVideoRef`.
 - **manual** — ISBN text input + `ManualAddForm` modal for fully manual entry.
@@ -61,10 +191,29 @@ Three modes: `barcode` | `cover` | `manual`.
 Stale-closure avoidance: scanner callbacks use `booksRef`, `isLoadingRef`, `torchRef` (refs kept in sync with state via `useEffect`).
 
 ### Bundle splitting
+
 `vite.config.ts` `manualChunks`:
+
 - `vendor-react` — react, react-dom, react-router-dom
 - `vendor-zxing` — @zxing/browser, @zxing/library (~400 KB; only loaded when `/scan` is visited)
-- `vendor-data` — dexie, zustand
+- `vendor-data` — dexie, zustand (`dexie` is vestigial — see Storage note above)
+
+### Service worker runtime caching (`vite.config.ts`)
+
+- `googleapis.com/*` → NetworkFirst, 200 entries, 24 h
+- `books.google.com/*` (covers) → CacheFirst, 500 entries, 7 d
 
 ### Theme
-`src/utils/theme.tsx` — `ThemeProvider` syncs `useLibraryStore().theme` to the `dark` class on `<html>`. Initial value reads from `localStorage` (`"my-library-theme"`) then falls back to `prefers-color-scheme`.
+
+[src/utils/theme.tsx](src/utils/theme.tsx) — `ThemeProvider` syncs `useLibraryStore().theme` to the `dark` class on `<html>`. Initial value reads from `localStorage` (`"my-library-theme"`) then falls back to `prefers-color-scheme`.
+
+### Vite dev proxy
+
+`vite.config.ts` proxies `/api` → `http://localhost:3001` so the frontend and backend share one origin in dev.
+
+## Testing
+
+- **Runner:** Vitest 4 with `happy-dom` environment, config in [vitest.config.ts](vitest.config.ts).
+- **Setup:** [src/test/setup.ts](src/test/setup.ts) stubs `window.matchMedia` (happy-dom doesn't implement it).
+- **Coverage:** `@vitest/coverage-v8`, includes `src/**/*.{ts,tsx}` minus `main.tsx` / `*.test.ts` / `src/test/**`.
+- **Conventions:** mock `fetch` with `vi.stubGlobal("fetch", vi.fn())` in `beforeEach`, reset in `afterEach`. When testing the plugin runner, also reset `usePluginConfig` state (e.g. disable all but one plugin) so tests aren't coupled to the default priority order.

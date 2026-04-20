@@ -1,15 +1,21 @@
 import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useLibraryStore } from "@/store/useLibraryStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { ThemeProvider } from "@/utils/theme";
 import Layout from "@/components/Layout";
+import RequireAuth from "@/components/RequireAuth";
+import { registerBuiltinPlugins } from "@/services/plugins";
+
+registerBuiltinPlugins();
 
 // Route-level code splitting — each page is a separate chunk
-const Home       = lazy(() => import("@/pages/Home"));
-const Scan       = lazy(() => import("@/pages/Scan"));
-const Library    = lazy(() => import("@/pages/Library"));
-const Stats      = lazy(() => import("@/pages/Stats"));
+const Scan = lazy(() => import("@/pages/Scan"));
+const Library = lazy(() => import("@/pages/Library"));
+const Stats = lazy(() => import("@/pages/Stats"));
 const BookDetail = lazy(() => import("@/pages/BookDetail"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const Login = lazy(() => import("@/pages/Login"));
 
 function PageSpinner() {
   return (
@@ -20,26 +26,58 @@ function PageSpinner() {
 }
 
 export default function App() {
-  const { loadBooks } = useLibraryStore();
+  const loadBooks = useLibraryStore((s) => s.loadBooks);
+  const loadMe = useAuthStore((s) => s.loadMe);
 
   useEffect(() => {
+    loadMe();
     loadBooks();
-  }, [loadBooks]);
+  }, [loadMe, loadBooks]);
 
   return (
     <ThemeProvider>
       <BrowserRouter>
         <Suspense fallback={<PageSpinner />}>
           <Routes>
-            {/* Full-screen scanner — no layout chrome */}
-            <Route path="/scan" element={<Scan />} />
+            {/* Auth + full-screen routes live outside Layout */}
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/scan"
+              element={
+                <RequireAuth>
+                  <Scan />
+                </RequireAuth>
+              }
+            />
 
-            {/* All other pages share the nav layout */}
+            {/* Everything else shares nav chrome. Browsing is public; writes/settings gated. */}
             <Route element={<Layout />}>
-              <Route index element={<Home />} />
+              <Route index element={<Library />} />
               <Route path="/library" element={<Library />} />
-              <Route path="/stats" element={<Stats />} />
-              <Route path="/book/:id" element={<BookDetail />} />
+              <Route
+                path="/book/:id"
+                element={
+                  <RequireAuth>
+                    <BookDetail />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/stats"
+                element={
+                  <RequireAuth>
+                    <Stats />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <RequireAuth>
+                    <Settings />
+                  </RequireAuth>
+                }
+              />
             </Route>
           </Routes>
         </Suspense>

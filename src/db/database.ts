@@ -1,20 +1,21 @@
 import type { Book } from "@/types/book";
+import { apiFetch } from "@/services/apiFetch";
 
 const API = "/api";
 
 export async function getAllBooks(): Promise<Book[]> {
-  const res = await fetch(`${API}/books`);
+  const res = await apiFetch(`${API}/books`);
   return res.json();
 }
 
 export async function getBook(id: string): Promise<Book | undefined> {
-  const res = await fetch(`${API}/books/${id}`);
+  const res = await apiFetch(`${API}/books/${id}`);
   if (res.status === 404) return undefined;
   return res.json();
 }
 
 export async function addBook(book: Book): Promise<void> {
-  await fetch(`${API}/books`, {
+  await apiFetch(`${API}/books`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(book),
@@ -22,7 +23,7 @@ export async function addBook(book: Book): Promise<void> {
 }
 
 export async function updateBook(id: string, changes: Partial<Book>): Promise<void> {
-  await fetch(`${API}/books/${id}`, {
+  await apiFetch(`${API}/books/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(changes),
@@ -30,16 +31,16 @@ export async function updateBook(id: string, changes: Partial<Book>): Promise<vo
 }
 
 export async function deleteBook(id: string): Promise<void> {
-  await fetch(`${API}/books/${id}`, { method: "DELETE" });
+  await apiFetch(`${API}/books/${id}`, { method: "DELETE" });
 }
 
 export async function searchBooks(query: string): Promise<Book[]> {
-  const res = await fetch(`${API}/books/search?q=${encodeURIComponent(query)}`);
+  const res = await apiFetch(`${API}/books/search?q=${encodeURIComponent(query)}`);
   return res.json();
 }
 
 export async function exportAllBooks(): Promise<string> {
-  const res = await fetch(`${API}/export`);
+  const res = await apiFetch(`${API}/export`);
   const books = await res.json();
   return JSON.stringify(books, null, 2);
 }
@@ -47,7 +48,7 @@ export async function exportAllBooks(): Promise<string> {
 export async function importBooks(json: string): Promise<number> {
   const parsed: unknown = JSON.parse(json);
   if (!Array.isArray(parsed)) throw new Error("Import data must be an array");
-  const res = await fetch(`${API}/import`, {
+  const res = await apiFetch(`${API}/import`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(parsed),
@@ -58,5 +59,5 @@ export async function importBooks(json: string): Promise<number> {
 }
 
 export async function clearAllBooks(): Promise<void> {
-  await fetch(`${API}/books`, { method: "DELETE" });
+  await apiFetch(`${API}/books`, { method: "DELETE" });
 }

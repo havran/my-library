@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { BookOpen, X, Loader2, ChevronRight, CheckCircle2 } from "lucide-react";
 import { useLibraryStore } from "@/store/useLibraryStore";
 import { fetchImageAsBase64 } from "@/services/imageCache";
+import { apiFetch } from "@/services/apiFetch";
 import { generateId } from "@/utils/helpers";
 import type { Book } from "@/types/book";
 
@@ -60,7 +61,7 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
   const abortRefs = useRef<AbortController[]>([]);
 
   useEffect(() => {
-    fetch(`/api/legie/serie?slug=${encodeURIComponent(serieSlug)}`)
+    apiFetch(`/api/legie/serie?slug=${encodeURIComponent(serieSlug)}`)
       .then((r) => r.json())
       .then((d) => {
         const allBooks: { slug: string; title: string; order: number }[] = d.books ?? [];
@@ -84,17 +85,15 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
         initial.forEach((row, idx) => {
           const ctrl = new AbortController();
           abortRefs.current.push(ctrl);
-          fetch(`/api/legie?slug=${encodeURIComponent(row.slug)}`, { signal: ctrl.signal })
+          apiFetch(`/api/legie?slug=${encodeURIComponent(row.slug)}`, { signal: ctrl.signal })
             .then((r) => r.json())
             .then((data: LegieData) => {
               setRows((prev) =>
-                prev.map((r, i) => (i === idx ? { ...r, loading: false, data } : r))
+                prev.map((r, i) => (i === idx ? { ...r, loading: false, data } : r)),
               );
             })
             .catch(() => {
-              setRows((prev) =>
-                prev.map((r, i) => (i === idx ? { ...r, loading: false } : r))
-              );
+              setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, loading: false } : r)));
             });
         });
       })
@@ -156,15 +155,20 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
   // ── Done screen ──────────────────────────────────────────────────────────────
   if (done) {
     return (
-      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
-        onClick={(e) => e.target === e.currentTarget && onDone()}>
+      <div
+        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
+        onClick={(e) => e.target === e.currentTarget && onDone()}
+      >
         <div className="w-full bg-white dark:bg-gray-900 rounded-t-3xl p-6 text-center animate-slide-up">
           <CheckCircle2 size={44} className="text-green-500 mx-auto mb-3" />
           <p className="font-bold text-xl text-gray-900 dark:text-white mb-1">Done!</p>
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-5">
             Added {addedCount} book{addedCount !== 1 ? "s" : ""} from {seriesTitle}.
           </p>
-          <button onClick={onDone} className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-semibold">
+          <button
+            onClick={onDone}
+            className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-semibold"
+          >
             Back to library
           </button>
         </div>
@@ -174,18 +178,26 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
 
   // ── Main sheet ───────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
-      onClick={(e) => e.target === e.currentTarget && onDone()}>
-      <div className="w-full bg-white dark:bg-gray-900 rounded-t-3xl flex flex-col animate-slide-up"
-        style={{ maxHeight: "90vh" }}>
-
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
+      onClick={(e) => e.target === e.currentTarget && onDone()}
+    >
+      <div
+        className="w-full bg-white dark:bg-gray-900 rounded-t-3xl flex flex-col animate-slide-up"
+        style={{ maxHeight: "90vh" }}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
           <div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold mb-0.5">Series</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold mb-0.5">
+              Series
+            </p>
             <p className="font-bold text-gray-900 dark:text-white">{seriesTitle}</p>
           </div>
-          <button onClick={onDone} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <button
+            onClick={onDone}
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          >
             <X size={20} className="text-gray-400" />
           </button>
         </div>
@@ -207,7 +219,9 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
               <Loader2 size={28} className="text-blue-400 animate-spin" />
             </div>
           ) : rows.length === 0 ? (
-            <p className="text-center text-gray-400 py-10 text-sm">All books already in your library.</p>
+            <p className="text-center text-gray-400 py-10 text-sm">
+              All books already in your library.
+            </p>
           ) : (
             rows.map((row, idx) => {
               const editions: Edition[] = row.data?.editions ?? [];
@@ -219,9 +233,11 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
               return (
                 <div key={row.slug} className="mb-1">
                   {/* Main row */}
-                  <div className={`flex items-center gap-3 py-2.5 rounded-xl px-1 transition-colors ${
-                    row.alreadyInLibrary ? "opacity-40" : ""
-                  }`}>
+                  <div
+                    className={`flex items-center gap-3 py-2.5 rounded-xl px-1 transition-colors ${
+                      row.alreadyInLibrary ? "opacity-40" : ""
+                    }`}
+                  >
                     {/* Cover */}
                     <div className="w-10 h-[60px] rounded-lg bg-gray-100 dark:bg-gray-800 shrink-0 overflow-hidden flex items-center justify-center">
                       {row.loading ? (
@@ -240,12 +256,19 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
                       className="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
                       style={{
                         borderColor: row.selected && !row.alreadyInLibrary ? "#3b82f6" : "#d1d5db",
-                        backgroundColor: row.selected && !row.alreadyInLibrary ? "#3b82f6" : "transparent",
+                        backgroundColor:
+                          row.selected && !row.alreadyInLibrary ? "#3b82f6" : "transparent",
                       }}
                     >
                       {(row.selected || row.alreadyInLibrary) && (
                         <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                          <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          <path
+                            d="M1 4l3 3 5-6"
+                            stroke="white"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
                         </svg>
                       )}
                     </button>
@@ -256,7 +279,9 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
                         {row.data?.title || row.title}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-gray-400 dark:text-gray-500">#{row.order}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          #{row.order}
+                        </span>
                         {selEd?.isbn && (
                           <span className="text-xs text-gray-400 dark:text-gray-500 font-mono truncate">
                             {selEd.isbn}
@@ -284,7 +309,10 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
                         }`}
                         title={`${editions.length} editions`}
                       >
-                        <ChevronRight size={15} className={`transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                        <ChevronRight
+                          size={15}
+                          className={`transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                        />
                       </button>
                     )}
                   </div>
@@ -299,7 +327,10 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
                         {editions.map((ed, edIdx) => (
                           <button
                             key={ed.coverUrl}
-                            onClick={() => { setEdition(idx, edIdx); setExpandedSlug(null); }}
+                            onClick={() => {
+                              setEdition(idx, edIdx);
+                              setExpandedSlug(null);
+                            }}
                             title={[ed.language, ed.year, ed.isbn].filter(Boolean).join(" · ")}
                             className={`shrink-0 w-10 h-[60px] rounded-lg overflow-hidden border-2 transition-all ${
                               edIdx === row.selectedEditionIdx
@@ -307,7 +338,11 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
                                 : "border-transparent opacity-60 hover:opacity-100"
                             }`}
                           >
-                            <img src={ed.coverUrl} alt={`Ed. ${edIdx + 1}`} className="w-full h-full object-cover" />
+                            <img
+                              src={ed.coverUrl}
+                              alt={`Ed. ${edIdx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
                           </button>
                         ))}
                       </div>
@@ -328,12 +363,19 @@ export function SeriesWizard({ seriesTitle, serieSlug, addedBookTitle, onDone }:
               className="w-full py-3 rounded-2xl bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-semibold flex items-center justify-center gap-2 transition-colors"
             >
               {adding ? (
-                <><Loader2 size={16} className="animate-spin" /> Adding…</>
+                <>
+                  <Loader2 size={16} className="animate-spin" /> Adding…
+                </>
               ) : (
-                <>Add {selectedCount} book{selectedCount !== 1 ? "s" : ""} to library</>
+                <>
+                  Add {selectedCount} book{selectedCount !== 1 ? "s" : ""} to library
+                </>
               )}
             </button>
-            <button onClick={onDone} className="w-full mt-2 text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 py-1.5 transition-colors">
+            <button
+              onClick={onDone}
+              className="w-full mt-2 text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 py-1.5 transition-colors"
+            >
               Cancel
             </button>
           </div>

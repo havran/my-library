@@ -10,12 +10,17 @@ interface Props {
 
 const FIELDS: { value: BookSortField; label: string }[] = [
   { value: "addedAt", label: "Date Added" },
-  { value: "title",   label: "Title" },
+  { value: "title", label: "Title" },
   { value: "authors", label: "Author" },
-  { value: "genres",  label: "Genre" },
+  { value: "genres", label: "Genre" },
 ];
 
-export function SortPicker({ sortField, sortDirection, onSortFieldChange, onSortDirectionChange }: Props) {
+export function SortPicker({
+  sortField,
+  sortDirection,
+  onSortFieldChange,
+  onSortDirectionChange,
+}: Props) {
   return (
     <div className="flex items-center gap-2 mt-2">
       <ArrowUpDown size={14} className="text-gray-400 shrink-0" />
@@ -25,7 +30,9 @@ export function SortPicker({ sortField, sortDirection, onSortFieldChange, onSort
         className="text-sm bg-transparent text-gray-600 dark:text-gray-300 cursor-pointer focus:outline-none"
       >
         {FIELDS.map((f) => (
-          <option key={f.value} value={f.value}>{f.label}</option>
+          <option key={f.value} value={f.value}>
+            {f.label}
+          </option>
         ))}
       </select>
       <button

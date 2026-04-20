@@ -57,7 +57,9 @@ export function BookPreview({ data, onAdd, onCancel, isAdding }: Props) {
               ))}
             </div>
             {data.pageCount && (
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">{data.pageCount} pages</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                {data.pageCount} pages
+              </p>
             )}
           </div>
         </div>

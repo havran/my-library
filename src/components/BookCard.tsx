@@ -67,17 +67,19 @@ export function BookCard({ book }: Props) {
               disabled={searching}
               className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-white/80 dark:bg-gray-900/80 text-gray-500 hover:text-blue-500 transition-colors disabled:opacity-50"
             >
-              {searching
-                ? <span className="block w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                : <Search size={12} />
-              }
+              {searching ? (
+                <span className="block w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Search size={12} />
+              )}
             </button>
           )}
           {/* Series badge */}
           {book.series && (
             <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
               <p className="text-white text-[10px] font-medium truncate">
-                {book.series}{book.seriesNumber ? ` #${book.seriesNumber}` : ""}
+                {book.series}
+                {book.seriesNumber ? ` #${book.seriesNumber}` : ""}
               </p>
             </div>
           )}
@@ -100,11 +102,7 @@ export function BookCard({ book }: Props) {
       </div>
 
       {covers.length > 0 && (
-        <CoverPicker
-          covers={covers}
-          onSelect={handlePickCover}
-          onClose={() => setCovers([])}
-        />
+        <CoverPicker covers={covers} onSelect={handlePickCover} onClose={() => setCovers([])} />
       )}
     </>
   );

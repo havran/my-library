@@ -23,7 +23,7 @@ export default function Library() {
 
   const displayed = useMemo(
     () => sortBooks(filterBooks(books, searchQuery), sortField, sortDirection),
-    [books, searchQuery, sortField, sortDirection]
+    [books, searchQuery, sortField, sortDirection],
   );
 
   if (books.length === 0) return <EmptyState />;
@@ -84,7 +84,8 @@ export default function Library() {
               Remove from library?
             </h3>
             <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-              "{books.find((b) => b.id === confirmDelete)?.title}" will be permanently deleted.
+              &ldquo;{books.find((b) => b.id === confirmDelete)?.title}&rdquo; will be permanently
+              deleted.
             </p>
             <div className="flex gap-3">
               <button
@@ -94,7 +95,10 @@ export default function Library() {
                 Cancel
               </button>
               <button
-                onClick={() => { deleteBook(confirmDelete); setConfirmDelete(null); }}
+                onClick={() => {
+                  deleteBook(confirmDelete);
+                  setConfirmDelete(null);
+                }}
                 className="flex-1 py-3 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-semibold flex items-center justify-center gap-2 transition-colors"
               >
                 <Trash2 size={16} />

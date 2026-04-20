@@ -41,7 +41,15 @@
       "Bash(curl:*)",
       "Bash(python3:*)",
       "Read(//tmp/**)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(npx eslint *)",
+      "Bash(npx prettier *)",
+      "Bash(npx husky *)",
+      "Bash(grep -E \"error|^$\")",
+      "Bash(PORT_OVERRIDE_SKIP= timeout 4 npx tsx server/index.ts)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(fuser -k 3001/tcp)",
+      "Bash(ping -c 2 -W 2 192.168.1.141)"
     ]
   },
   "hooks": {

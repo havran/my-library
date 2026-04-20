@@ -36,12 +36,18 @@ export default defineConfig({
           {
             urlPattern: /^https:\/\/www\.googleapis\.com\//,
             handler: "NetworkFirst",
-            options: { cacheName: "google-books-cache", expiration: { maxEntries: 200, maxAgeSeconds: 86400 } },
+            options: {
+              cacheName: "google-books-cache",
+              expiration: { maxEntries: 200, maxAgeSeconds: 86400 },
+            },
           },
           {
             urlPattern: /^https:\/\/books\.google\.com\//,
             handler: "CacheFirst",
-            options: { cacheName: "book-covers-cache", expiration: { maxEntries: 500, maxAgeSeconds: 604800 } },
+            options: {
+              cacheName: "book-covers-cache",
+              expiration: { maxEntries: 500, maxAgeSeconds: 604800 },
+            },
           },
         ],
       },
@@ -63,8 +69,8 @@ export default defineConfig({
           "vendor-react": ["react", "react-dom", "react-router-dom"],
           // ZXing is heavy (~400 KB) — only loaded on /scan
           "vendor-zxing": ["@zxing/browser", "@zxing/library"],
-          // Storage + state
-          "vendor-data": ["dexie", "zustand"],
+          // State management
+          "vendor-data": ["zustand"],
         },
       },
     },

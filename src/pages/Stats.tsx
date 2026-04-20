@@ -6,8 +6,16 @@ import { useState } from "react";
 
 // ── Colours ───────────────────────────────────────────────────────────────────
 const PALETTE = [
-  "#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6",
-  "#06b6d4","#ec4899","#84cc16","#f97316","#6366f1",
+  "#3b82f6",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#06b6d4",
+  "#ec4899",
+  "#84cc16",
+  "#f97316",
+  "#6366f1",
 ];
 
 // ── Mini SVG Pie Chart ────────────────────────────────────────────────────────
@@ -47,7 +55,9 @@ function PieChart({ data }: { data: { label: string; value: number }[] }) {
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800 ${className}`}>
+    <div
+      className={`bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800 ${className}`}
+    >
       {children}
     </div>
   );
@@ -64,7 +74,9 @@ export default function Stats() {
   };
 
   if (books.length === 0) {
-    return <EmptyState title="No stats yet" description="Add some books to see your reading stats." />;
+    return (
+      <EmptyState title="No stats yet" description="Add some books to see your reading stats." />
+    );
   }
 
   const totalBooks = books.length;
@@ -176,7 +188,9 @@ export default function Stats() {
                   className="w-3 h-3 rounded-full shrink-0"
                   style={{ background: PALETTE[i % PALETTE.length] }}
                 />
-                <span className="flex-1 text-sm text-gray-700 dark:text-gray-300 truncate">{genre}</span>
+                <span className="flex-1 text-sm text-gray-700 dark:text-gray-300 truncate">
+                  {genre}
+                </span>
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">{count}</span>
               </div>
             ))}
@@ -193,7 +207,9 @@ export default function Stats() {
             .slice(0, 5)
             .map((b) => (
               <div key={b.id} className="flex items-center justify-between py-2.5 gap-3">
-                <span className="text-sm text-gray-900 dark:text-white font-medium truncate">{b.title}</span>
+                <span className="text-sm text-gray-900 dark:text-white font-medium truncate">
+                  {b.title}
+                </span>
                 <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
                   {new Date(b.addedAt).toLocaleDateString()}
                 </span>

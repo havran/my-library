@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  getAllBooks, getBook, addBook, updateBook, deleteBook,
-  searchBooks, exportAllBooks, importBooks, clearAllBooks,
+  getAllBooks,
+  getBook,
+  addBook,
+  updateBook,
+  deleteBook,
+  searchBooks,
+  exportAllBooks,
+  importBooks,
+  clearAllBooks,
 } from "./database";
 import type { Book } from "@/types/book";
 
@@ -47,7 +54,7 @@ describe("getAllBooks", () => {
     const books = [makeBook({ id: "1" })];
     vi.mocked(fetch).mockImplementation(mockFetch(books));
     expect(await getAllBooks()).toEqual(books);
-    expect(fetch).toHaveBeenCalledWith("/api/books");
+    expect(fetch).toHaveBeenCalledWith("/api/books", undefined);
   });
 });
 
@@ -56,7 +63,7 @@ describe("getBook", () => {
     const book = makeBook({ id: "abc" });
     vi.mocked(fetch).mockImplementation(mockFetch(book));
     expect(await getBook("abc")).toEqual(book);
-    expect(fetch).toHaveBeenCalledWith("/api/books/abc");
+    expect(fetch).toHaveBeenCalledWith("/api/books/abc", undefined);
   });
 
   it("returns undefined on 404", async () => {
@@ -70,10 +77,13 @@ describe("addBook", () => {
     vi.mocked(fetch).mockImplementation(mockFetch({ ok: true }));
     const book = makeBook();
     await addBook(book);
-    expect(fetch).toHaveBeenCalledWith("/api/books", expect.objectContaining({
-      method: "POST",
-      body: JSON.stringify(book),
-    }));
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/books",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(book),
+      }),
+    );
   });
 });
 
@@ -81,10 +91,13 @@ describe("updateBook", () => {
   it("PUT /api/books/:id with changes as JSON body", async () => {
     vi.mocked(fetch).mockImplementation(mockFetch({ ok: true }));
     await updateBook("u1", { title: "Updated" });
-    expect(fetch).toHaveBeenCalledWith("/api/books/u1", expect.objectContaining({
-      method: "PUT",
-      body: JSON.stringify({ title: "Updated" }),
-    }));
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/books/u1",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ title: "Updated" }),
+      }),
+    );
   });
 });
 
@@ -100,7 +113,7 @@ describe("searchBooks", () => {
   it("GET /api/books/search with encoded query", async () => {
     vi.mocked(fetch).mockImplementation(mockFetch([]));
     await searchBooks("tolkien fantasy");
-    expect(fetch).toHaveBeenCalledWith("/api/books/search?q=tolkien%20fantasy");
+    expect(fetch).toHaveBeenCalledWith("/api/books/search?q=tolkien%20fantasy", undefined);
   });
 });
 

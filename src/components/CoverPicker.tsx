@@ -32,12 +32,7 @@ export function CoverPicker({ covers, onSelect, onClose }: Props) {
               onClick={() => onSelect(url)}
               className="aspect-[2/3] rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 hover:ring-2 hover:ring-blue-500 active:scale-95 transition-all"
             >
-              <img
-                src={url}
-                alt=""
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
+              <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
             </button>
           ))}
         </div>

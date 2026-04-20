@@ -64,7 +64,9 @@ describe("loadBooks", () => {
 
   it("sets isLoading true during load, then false after", async () => {
     let resolve: (v: Book[]) => void;
-    const pending = new Promise<Book[]>((r) => { resolve = r; });
+    const pending = new Promise<Book[]>((r) => {
+      resolve = r;
+    });
     vi.mocked(database.getAllBooks).mockReturnValueOnce(pending);
 
     const load = useLibraryStore.getState().loadBooks();

@@ -53,7 +53,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     await database.updateBook(id, changes);
     set((state) => ({
       books: state.books.map((b) =>
-        b.id === id ? { ...b, ...changes, updatedAt: new Date().toISOString() } : b
+        b.id === id ? { ...b, ...changes, updatedAt: new Date().toISOString() } : b,
       ),
     }));
   },
@@ -81,7 +81,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   toggleTheme: () =>
     set((state) => {
       const newTheme = state.theme === "light" ? "dark" : "light";
-      try { localStorage.setItem("my-library-theme", newTheme); } catch {}
+      try {
+        localStorage.setItem("my-library-theme", newTheme);
+      } catch {}
       return { theme: newTheme };
     }),
 

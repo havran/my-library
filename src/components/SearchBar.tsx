@@ -6,10 +6,17 @@ interface Props {
   placeholder?: string;
 }
 
-export function SearchBar({ value, onChange, placeholder = "Search books, authors, genres…" }: Props) {
+export function SearchBar({
+  value,
+  onChange,
+  placeholder = "Search books, authors, genres…",
+}: Props) {
   return (
     <div className="relative">
-      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+      <Search
+        size={16}
+        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+      />
       <input
         type="search"
         value={value}
