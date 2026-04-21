@@ -33,6 +33,9 @@ const app = express();
 // Trust loopback/LAN proxy so express-rate-limit sees the real client IP.
 app.set("trust proxy", "loopback, linklocal, uniquelocal");
 
+// At info/warn/error, emit a compact one-line summary. Full headers/body
+// detail is only useful when something's wrong, so dump that at debug level
+// via a separate middleware (toggled by LOG_LEVEL=debug).
 app.use(
   pinoHttp({
     logger,
@@ -41,8 +44,25 @@ app.use(
       if (res.statusCode >= 400) return "warn";
       return "debug";
     },
+    customSuccessMessage: (req, res, time) =>
+      `${req.method} ${req.url} ${res.statusCode} ${time}ms`,
+    customErrorMessage: (req, res, err) =>
+      `${req.method} ${req.url} ${res.statusCode} ${err?.message ?? "err"}`,
+    serializers: {
+      req: (r) => ({ method: r.method, url: r.url }),
+      res: (r) => ({ statusCode: r.statusCode }),
+    },
   }),
 );
+if (logger.isLevelEnabled("debug")) {
+  app.use((req, _res, next) => {
+    logger.debug(
+      { method: req.method, url: req.url, headers: req.headers, query: req.query },
+      "req detail",
+    );
+    next();
+  });
+}
 app.use(cors());
 app.use(cookieParser());
 app.use(express.json({ limit: "50mb" }));
