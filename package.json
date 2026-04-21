@@ -15,9 +15,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "deploy": "npm run build && rsync -avz --delete dist/ havran@192.168.1.141:~/my-library/dist/ && rsync -avz server/ havran@192.168.1.141:~/my-library/server/ && rsync -avz package.json package-lock.json havran@192.168.1.141:~/my-library/",
+    "deploy": "npm run build && rsync -avz --delete dist/ havran@192.168.1.141:~/my-library/dist/ && rsync -avz server/ havran@192.168.1.141:~/my-library/server/ && rsync -avz package.json package-lock.json ecosystem.config.cjs havran@192.168.1.141:~/my-library/",
     "server:stop": "lsof -ti:3001 | xargs -r kill && echo 'local server stopped' || echo 'no local server on :3001'",
-    "server:stop:remote": "ssh havran@192.168.1.141 'lsof -ti:3001 | xargs -r kill && echo remote server stopped || echo no remote server on :3001'",
+    "server:stop:remote": "ssh havran@192.168.1.141 'pm2 stop my-library'",
+    "server:reload:remote": "ssh havran@192.168.1.141 'pm2 reload my-library'",
     "prepare": "husky"
   },
   "lint-staged": {

@@ -18,9 +18,29 @@ rsync -avz package.json package-lock.json havran@192.168.1.141:~/my-library/  # 
 
 **Important:** the `dist/` target has a trailing `/dist/` on the remote — dropping it makes `--delete` wipe everything else in `~/my-library/` (server/, node_modules/, etc.).
 
-Or just `npm run deploy` — it builds and rsyncs all three. Remote still needs `npm install` if package files changed.
+Or just `npm run deploy` — it builds and rsyncs `dist/`, `server/`, `package.json`, `package-lock.json`, and `ecosystem.config.cjs`. Remote still needs `npm install` if package files changed.
 
 The server process on the dev host serves both the built SPA (`dist/`) and the `/api/*` endpoints, reusing the same HTTPS listener on port 3001.
+
+**Process management (pm2):** the remote server runs under pm2 using [ecosystem.config.cjs](ecosystem.config.cjs) (tsx interpreting `server/index.ts` directly, no server-side build step). First-time setup on the remote:
+
+```bash
+npm install -g pm2
+cd ~/my-library && pm2 start ecosystem.config.cjs
+pm2 save                      # persist process list
+pm2 startup                   # prints a systemd command to run as root so pm2 starts on boot
+```
+
+After a deploy, reload the server with `ssh havran@192.168.1.141 'pm2 reload my-library'` (or `restart` for a hard restart). Logs live in `~/.local/share/my-library/logs/server-{out,error}.log` (alongside the DB) with pm2 prefixing each line with a timestamp; tail them with `pm2 logs my-library`. `pm2 status` for a snapshot.
+
+To cap log growth, install pm2-logrotate once on the remote:
+
+```bash
+pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 10M
+pm2 set pm2-logrotate:retain 14
+pm2 set pm2-logrotate:compress true
+```
 
 ## Commands
 
