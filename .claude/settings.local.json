@@ -49,7 +49,16 @@
       "Bash(PORT_OVERRIDE_SKIP= timeout 4 npx tsx server/index.ts)",
       "Bash(echo \"exit: $?\")",
       "Bash(fuser -k 3001/tcp)",
-      "Bash(ping -c 2 -W 2 192.168.1.141)"
+      "Bash(ping -c 2 -W 2 192.168.1.141)",
+      "Bash(awk 'NR==265,/<\\\\/script>/' /tmp/dbk-search.html)",
+      "Bash(awk '/motory-boha-2195/{print NR\": \"$0}' /tmp/dbk-search.html)",
+      "Bash(npx vitest *)",
+      "Bash(rtk git *)",
+      "Bash(rtk read *)",
+      "Bash(cp CLAUDE.md /tmp/CLAUDE.md.full)",
+      "Bash(cp server/index.ts /tmp/server-index.ts.full)",
+      "Bash(git checkout *)",
+      "Bash(rtk diff *)"
     ]
   },
   "hooks": {
