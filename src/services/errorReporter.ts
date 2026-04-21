@@ -69,10 +69,18 @@ export function installGlobalErrorReporter(): void {
     const reason = event.reason;
     const message =
       reason instanceof Error ? reason.message : typeof reason === "string" ? reason : "unhandled";
+    if (isBenignCameraRejection(message)) return;
     reportClientError({
       level: "error",
       message: `unhandledrejection: ${message}`,
       stack: reason instanceof Error ? reason.stack : undefined,
     });
   });
+}
+
+// Chromium on Android rejects internally when an unsupported MediaTrack
+// constraint (e.g. focusMode: "continuous") gets applied to the camera.
+// The camera still works — the rejection is cosmetic, not actionable.
+function isBenignCameraRejection(message: string): boolean {
+  return /setPhotoOptions failed|applyConstraints.*not supported/i.test(message);
 }
