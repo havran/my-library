@@ -15,6 +15,7 @@ import { booksRouter, exportRouter, importRouter } from "./routes/books.js";
 import { isbnOcrRouter } from "./routes/isbnOcr.js";
 import { cbdbRouter } from "./routes/sources/cbdb.js";
 import { legieRouter } from "./routes/sources/legie.js";
+import { databazeknihRouter } from "./routes/sources/databazeknih.js";
 import { clientErrorRouter } from "./routes/clientError.js";
 import {
   globalLimiter,
@@ -82,6 +83,7 @@ app.use("/api/import", writeLimiter, importRouter);
 app.use("/api/isbn-ocr", ocrLimiter, requireAuth, isbnOcrRouter);
 app.use("/api/cbdb", scraperLimiter, requireAuth, cbdbRouter);
 app.use("/api/legie", scraperLimiter, requireAuth, legieRouter);
+app.use("/api/databazeknih", scraperLimiter, requireAuth, databazeknihRouter);
 
 // Client error reports are fire-and-forget telemetry — intentionally public so
 // unauthenticated errors (e.g. a crash on the login page) still reach us.

@@ -5,14 +5,16 @@ import { nkpPlugin } from "./sources/nkp";
 import { cbdbPlugin } from "./sources/cbdb";
 import { legiePlugin } from "./sources/legie";
 import { obalkyKnihPlugin } from "./sources/obalkyKnih";
+import { databazeknihPlugin } from "./sources/databazeknih";
 
 /**
  * Default order mirrors the previous hardcoded priority:
- * cbdb > NKP > Google > Open Library, with legie/obalkyknih as cover enrichers.
+ * cbdb > databazeknih > NKP > Google > Open Library, with legie/obalkyknih as cover enrichers.
  * Users can override this via the Settings page.
  */
 const BUILTIN_PLUGINS = [
   cbdbPlugin,
+  databazeknihPlugin,
   nkpPlugin,
   googleBooksPlugin,
   openLibraryPlugin,
