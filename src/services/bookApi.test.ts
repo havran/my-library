@@ -96,6 +96,8 @@ describe("fetchByISBN (via plugin runner)", () => {
 
   it("returns parsed book when Google Books finds a match", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
       json: async () => ({ totalItems: 1, items: [mockGoogleItem] }),
     } as Response);
 
@@ -106,6 +108,8 @@ describe("fetchByISBN (via plugin runner)", () => {
 
   it("returns null when the only enabled source returns nothing", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
       json: async () => ({ totalItems: 0 }),
     } as Response);
     expect(await fetchByISBN("0000000000000")).toBeNull();
@@ -126,6 +130,8 @@ describe("searchByTitle", () => {
 
   it("returns parsed books on success", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
       json: async () => ({ items: [mockGoogleItem] }),
     } as Response);
 
@@ -149,6 +155,8 @@ describe("searchByText", () => {
 
   it("returns multiple parsed books on success", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
       json: async () => ({ items: [mockGoogleItem, mockGoogleItem] }),
     } as Response);
 

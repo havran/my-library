@@ -1,7 +1,8 @@
 import type { BookSearchResult } from "@/types/book";
 import type { BookSourcePlugin } from "../types";
+import { apiFetch } from "@/services/apiFetch";
 
-const BASE = "https://aleph.nkp.cz/X";
+const PROXY = "/api/nkp";
 
 /**
  * Two-step: (1) find set_number by ISBN, (2) fetch OAI-MARC record.
@@ -10,7 +11,13 @@ const BASE = "https://aleph.nkp.cz/X";
 async function fetchFromNKP(isbn: string, signal: AbortSignal): Promise<BookSearchResult | null> {
   const cleanIsbn = isbn.replace(/-/g, "");
 
-  const findRes = await fetch(`${BASE}?op=find&request=sbn=${cleanIsbn}&base=nkc`, { signal });
+  const findParams = new URLSearchParams({
+    op: "find",
+    request: `sbn=${cleanIsbn}`,
+    base: "nkc",
+  });
+  const findRes = await apiFetch(`${PROXY}?${findParams.toString()}`, { signal });
+  if (!findRes.ok) return null;
   const findXml = await findRes.text();
 
   const noRecords = parseInt(findXml.match(/<no_records>\s*0*(\d+)\s*<\/no_records>/)?.[1] ?? "0");
@@ -19,10 +26,15 @@ async function fetchFromNKP(isbn: string, signal: AbortSignal): Promise<BookSear
   const setNumber = findXml.match(/<set_number>\s*0*(\d+)\s*<\/set_number>/)?.[1];
   if (!setNumber) return null;
 
-  const presentRes = await fetch(
-    `${BASE}?op=present&set_number=${setNumber}&set_entry=1-1&format=marc&base=nkc`,
-    { signal },
-  );
+  const presentParams = new URLSearchParams({
+    op: "present",
+    set_number: setNumber,
+    set_entry: "1-1",
+    format: "marc",
+    base: "nkc",
+  });
+  const presentRes = await apiFetch(`${PROXY}?${presentParams.toString()}`, { signal });
+  if (!presentRes.ok) return null;
   const presentXml = await presentRes.text();
 
   const dom = new DOMParser().parseFromString(presentXml, "text/xml");

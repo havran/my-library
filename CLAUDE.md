@@ -127,6 +127,10 @@ server/
       cbdb.ts                  # /api/cbdb — parseCbdbBookPage, parseCbdbSearchLinks
       legie.ts                 # /api/legie + /api/legie/serie — parseLegieBookPage, parseLegieEditions, …
       databazeknih.ts          # /api/databazeknih — parseDatabazeknihBookPage, parseDatabazeknihSearchLinks
+      googleBooks.ts           # /api/googleBooks — transparent proxy (rate-limited, auth-gated)
+      openLibrary.ts           # /api/openLibrary — transparent proxy
+      nkp.ts                   # /api/nkp — transparent proxy to aleph.nkp.cz X-Server
+      obalkyKnih.ts            # /api/obalkyKnih — transparent proxy
       cbdb.test.ts             # parser unit tests (HTML fixtures)
       legie.test.ts            # parser unit tests (HTML fixtures)
       databazeknih.test.ts     # parser unit tests (HTML fixtures)
@@ -149,22 +153,26 @@ Third-party proxies (avoid CORS and bot-detection from the browser) — **all re
 - `GET /api/legie?title=` | `?isbn=` | `?slug=` — scrapes legie.info (book info + edition covers). Returns `{ ...book, editions, coverUrls }`.
 - `GET /api/legie/serie?slug=` — scrapes a series page, returns ordered book list.
 - `GET /api/databazeknih?isbn=` or `?q=` — scrapes databazeknih.cz. The site's `/search` endpoint 302s straight to `/prehled-knihy/...` on unique hits (e.g. ISBNs), so one fetch handles the common case; otherwise falls back to picking the top search result. Rating is normalized from the site's 0–5 scale to 0–100.
+- `GET /api/googleBooks?q=&maxResults=` — transparent proxy for `www.googleapis.com/books/v1/volumes`. Response body forwarded as-is; parsing stays in the frontend plugin.
+- `GET /api/openLibrary?bibkeys=&format=&jscmd=` — transparent proxy for `openlibrary.org/api/books`.
+- `GET /api/nkp?op=find|present&…` — transparent proxy for `aleph.nkp.cz/X`. Allowed params are `op, request, base, set_number, set_entry, format`; anything else is dropped.
+- `GET /api/obalkyKnih?isbn=&keywords=` — transparent proxy for `www.obalkyknih.cz/api/books` (cover lookup).
 - `POST /api/isbn-ocr` with base64 `{ image }` — Tesseract OCR tuned for ISBN digits (numeric whitelist, sparse-text PSM). Tries normal + inverted in parallel. Returns `{ isbn, partial }`.
 - `POST /api/log/client` with `{ level?, message, stack?, url?, context? }` — frontend-error sink, **public** (unauthenticated errors on the login page still need to reach us). Logged via pino with `source: "client"`. The browser posts to this automatically via [src/services/errorReporter.ts](src/services/errorReporter.ts) (global `window.error` + `unhandledrejection` handlers, sendBeacon-first with fetch fallback, 5 s dedup window).
 
-All third-party scraping goes through [server/http.ts](server/http.ts)' per-host 1-second `rateLimitedFetch` to stay polite. Custom `User-Agent` + `Accept-Language: cs-CZ` headers from `CZ_BROWSER_HEADERS` are sent to cbdb/legie/databazeknih.
+All third-party requests (scrapers + transparent proxies) go through [server/http.ts](server/http.ts)' per-host 1-second `rateLimitedFetch` to stay polite. Custom `User-Agent` + `Accept-Language: cs-CZ` headers from `CZ_BROWSER_HEADERS` are sent to cbdb/legie/databazeknih. The frontend never talks to metadata providers directly — routing through the server lets us share a single rate-limit budget, hide user IPs, and keeps browser CORS/console clean.
 
 ### Rate limiting
 
 Inbound limits (per IP, 1 minute windows) defined in [server/middleware/rateLimit.ts](server/middleware/rateLimit.ts):
 
-| Limiter              | Limit   | Applied to                                           |
-| -------------------- | ------- | ---------------------------------------------------- |
-| `globalLimiter`      | 300/min | `/api/*` (ceiling)                                   |
-| `writeLimiter`       | 60/min  | `/api/books`, `/api/import` — skips GET/HEAD/OPTIONS |
-| `scraperLimiter`     | 60/min  | `/api/cbdb`, `/api/legie`, `/api/databazeknih`       |
-| `ocrLimiter`         | 20/min  | `/api/isbn-ocr`                                      |
-| `clientErrorLimiter` | 30/min  | `/api/log/client`                                    |
+| Limiter              | Limit   | Applied to                                                                                                            |
+| -------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
+| `globalLimiter`      | 300/min | `/api/*` (ceiling)                                                                                                    |
+| `writeLimiter`       | 60/min  | `/api/books`, `/api/import` — skips GET/HEAD/OPTIONS                                                                  |
+| `scraperLimiter`     | 60/min  | `/api/cbdb`, `/api/legie`, `/api/databazeknih`, `/api/googleBooks`, `/api/openLibrary`, `/api/nkp`, `/api/obalkyKnih` |
+| `ocrLimiter`         | 20/min  | `/api/isbn-ocr`                                                                                                       |
+| `clientErrorLimiter` | 30/min  | `/api/log/client`                                                                                                     |
 
 `app.set("trust proxy", "loopback, linklocal, uniquelocal")` so the limiter sees the real client IP when fronted by a LAN reverse proxy.
 
@@ -204,7 +212,7 @@ All external book lookups go through a plugin registry, not a hardcoded fallback
 Notes on individual sources:
 
 - **NKP** (Aleph X-Server, 2-step `op=find` → `op=present`, OAI-MARC XML parsed with browser `DOMParser`) does not provide covers.
-- **cbdb**, **legie**, and **databazeknih** go through the local server proxy, so they only work when the backend is running.
+- **All sources** go through the local server proxy (either a parsing scraper for cbdb/legie/databazeknih or a transparent proxy for googleBooks/openLibrary/nkp/obalkyKnih), so they only work when the backend is running.
 - **legie** is title-based (no ISBN endpoint), so it implements `searchByTitle` + `findCovers` and runs in phase 2 during ISBN lookups.
 
 ### Scan page ([src/pages/Scan.tsx](src/pages/Scan.tsx))

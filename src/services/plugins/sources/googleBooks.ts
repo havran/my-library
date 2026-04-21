@@ -1,7 +1,8 @@
 import type { BookSearchResult } from "@/types/book";
 import type { BookSourcePlugin } from "../types";
+import { apiFetch } from "@/services/apiFetch";
 
-const BASE = "https://www.googleapis.com/books/v1/volumes";
+const PROXY = "/api/googleBooks";
 
 export function parseGoogleBook(item: any): BookSearchResult {
   const v = item.volumeInfo || {};
@@ -27,7 +28,9 @@ export function parseGoogleBook(item: any): BookSearchResult {
 }
 
 async function query(q: string, signal: AbortSignal, max = 10) {
-  const res = await fetch(`${BASE}?q=${q}&maxResults=${max}`, { signal });
+  const params = new URLSearchParams({ q, maxResults: String(max) });
+  const res = await apiFetch(`${PROXY}?${params.toString()}`, { signal });
+  if (!res.ok) return [];
   const data = await res.json();
   return (data.items || []) as any[];
 }
@@ -44,22 +47,22 @@ export const googleBooksPlugin: BookSourcePlugin = {
   },
 
   async searchByTitle(title, signal) {
-    const items = await query(`intitle:${encodeURIComponent(title)}`, signal);
+    const items = await query(`intitle:${title}`, signal);
     return items.map(parseGoogleBook);
   },
 
   async searchByAuthor(author, signal) {
-    const items = await query(`inauthor:${encodeURIComponent(author)}`, signal);
+    const items = await query(`inauthor:${author}`, signal);
     return items.map(parseGoogleBook);
   },
 
   async searchByText(text, signal) {
-    const items = await query(encodeURIComponent(text), signal);
+    const items = await query(text, signal);
     return items.map(parseGoogleBook);
   },
 
   async findCovers({ isbn, title }, signal) {
-    const q = isbn ? `isbn:${isbn}` : title ? encodeURIComponent(title) : "";
+    const q = isbn ? `isbn:${isbn}` : title ? title : "";
     if (!q) return [];
     const items = await query(q, signal, 1);
     const thumb = items[0]?.volumeInfo?.imageLinks?.thumbnail as string | undefined;

@@ -1,6 +1,7 @@
 import type { BookSourcePlugin } from "../types";
+import { apiFetch } from "@/services/apiFetch";
 
-const BASE = "https://openlibrary.org";
+const PROXY = "/api/openLibrary";
 const COVERS = "https://covers.openlibrary.org";
 
 export const openLibraryPlugin: BookSourcePlugin = {
@@ -10,9 +11,13 @@ export const openLibraryPlugin: BookSourcePlugin = {
   timeoutMs: 6000,
 
   async searchByISBN(isbn, signal) {
-    const res = await fetch(`${BASE}/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`, {
-      signal,
+    const params = new URLSearchParams({
+      bibkeys: `ISBN:${isbn}`,
+      format: "json",
+      jscmd: "data",
     });
+    const res = await apiFetch(`${PROXY}?${params.toString()}`, { signal });
+    if (!res.ok) return null;
     const data = await res.json();
     const b = data[`ISBN:${isbn}`];
     if (!b) return null;

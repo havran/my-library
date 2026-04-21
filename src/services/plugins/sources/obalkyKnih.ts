@@ -1,6 +1,7 @@
 import type { BookSourcePlugin } from "../types";
+import { apiFetch } from "@/services/apiFetch";
 
-const BASE = "https://www.obalkyknih.cz/api/books";
+const PROXY = "/api/obalkyKnih";
 
 export const obalkyKnihPlugin: BookSourcePlugin = {
   id: "obalky-knih",
@@ -10,7 +11,8 @@ export const obalkyKnihPlugin: BookSourcePlugin = {
 
   async findCovers({ isbn }, signal) {
     if (!isbn) return [];
-    const res = await fetch(`${BASE}?isbn=${isbn}&keywords=`, { signal });
+    const params = new URLSearchParams({ isbn, keywords: "" });
+    const res = await apiFetch(`${PROXY}?${params.toString()}`, { signal });
     if (!res.ok) return [];
     const data = await res.json();
     const url = data?.[0]?.cover_medium_url || data?.[0]?.thumbnail_url;
