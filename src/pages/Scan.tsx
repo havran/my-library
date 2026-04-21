@@ -62,6 +62,7 @@ export default function Scan() {
   const barcodeVideoRef = useRef<HTMLVideoElement>(null);
   const coverVideoRef = useRef<HTMLVideoElement>(null);
   const isbnVideoRef = useRef<HTMLVideoElement>(null);
+  const isbnGuideRef = useRef<HTMLDivElement>(null);
   const barcodeScannerRef = useRef<{ stop: () => void } | null>(null);
   const coverStreamRef = useRef<MediaStream | null>(null);
   const isbnStreamRef = useRef<MediaStream | null>(null);
@@ -279,17 +280,45 @@ export default function Scan() {
     return n ? sum / n : 0;
   }
 
+  // Map the on-screen guide rectangle through `object-fit: cover` to the
+  // video's native pixel space and crop just that region (with a small
+  // padding for alignment slack). Falls back to a centered 25 % horizontal
+  // strip if the guide isn't mounted yet.
   function captureStrip(video: HTMLVideoElement): HTMLCanvasElement | null {
     const vw = video.videoWidth,
       vh = video.videoHeight;
     if (!vw || !vh) return null;
+
+    let sx = 0,
+      sy = Math.round(vh * 0.375),
+      sw = vw,
+      sh = Math.round(vh * 0.25);
+
+    const guide = isbnGuideRef.current;
+    if (guide) {
+      const g = guide.getBoundingClientRect();
+      const v = video.getBoundingClientRect();
+      // object-cover: video scales so both dimensions cover the container;
+      // the larger axis overflows symmetrically.
+      const scale = Math.max(v.width / vw, v.height / vh);
+      const displayedW = vw * scale;
+      const displayedH = vh * scale;
+      const offsetX = (v.width - displayedW) / 2;
+      const offsetY = (v.height - displayedH) / 2;
+      const padX = g.width * 0.15;
+      const padY = g.height * 0.35;
+      const cssX = g.left - v.left - padX;
+      const cssY = g.top - v.top - padY;
+      sx = Math.max(0, Math.round((cssX - offsetX) / scale));
+      sy = Math.max(0, Math.round((cssY - offsetY) / scale));
+      sw = Math.min(vw - sx, Math.round((g.width + padX * 2) / scale));
+      sh = Math.min(vh - sy, Math.round((g.height + padY * 2) / scale));
+    }
+
     const canvas = document.createElement("canvas");
-    const stripH = Math.round(vh * 0.25);
-    canvas.width = vw;
-    canvas.height = stripH;
-    canvas
-      .getContext("2d")!
-      .drawImage(video, 0, Math.round(vh * 0.375), vw, stripH, 0, 0, vw, stripH);
+    canvas.width = sw;
+    canvas.height = sh;
+    canvas.getContext("2d")!.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
     return canvas;
   }
 
@@ -320,11 +349,34 @@ export default function Scan() {
       isbnVideoRef.current.srcObject = stream;
       await isbnVideoRef.current.play().catch(() => {});
       isbnActiveRef.current = true;
+      await applyMacroFocus(stream.getVideoTracks()[0]);
     } catch (err: any) {
       if (err?.name === "NotAllowedError") setPermissionDenied(true);
       else showToast("Camera error: " + (err?.message ?? "unknown"), "error");
     }
   }, [showToast]);
+
+  // Lock focus at the closest distance the camera advertises (macro). Driver
+  // support is patchy — silently no-op when the capability isn't exposed.
+  async function applyMacroFocus(track: MediaStreamTrack | undefined): Promise<void> {
+    if (!track) return;
+    try {
+      const cap = track.getCapabilities?.() as Record<string, unknown> | undefined;
+      const fd = cap?.focusDistance as { min?: number } | undefined;
+      if (typeof fd?.min !== "number") return;
+      const modes = (cap?.focusMode as string[] | undefined) ?? [];
+      await (track as any).applyConstraints({
+        advanced: [
+          {
+            ...(modes.includes("manual") ? { focusMode: "manual" } : {}),
+            focusDistance: fd.min,
+          },
+        ],
+      });
+    } catch {
+      // unsupported / device rejected — ignore
+    }
+  }
 
   const captureISBN = useCallback(async () => {
     const video = isbnVideoRef.current;
@@ -620,7 +672,7 @@ export default function Scan() {
               />
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 {/* Wide short guide strip */}
-                <div className="relative w-80 h-16">
+                <div ref={isbnGuideRef} className="relative w-80 h-16">
                   {[
                     "top-0 left-0 border-t-2 border-l-2",
                     "top-0 right-0 border-t-2 border-r-2",
