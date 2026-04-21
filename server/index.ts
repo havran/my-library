@@ -17,6 +17,7 @@ import { cbdbRouter } from "./routes/sources/cbdb.js";
 import { legieRouter } from "./routes/sources/legie.js";
 import { databazeknihRouter } from "./routes/sources/databazeknih.js";
 import { clientErrorRouter } from "./routes/clientError.js";
+import { settingsRouter } from "./routes/settings.js";
 import {
   globalLimiter,
   writeLimiter,
@@ -84,6 +85,9 @@ app.use("/api/isbn-ocr", ocrLimiter, requireAuth, isbnOcrRouter);
 app.use("/api/cbdb", scraperLimiter, requireAuth, cbdbRouter);
 app.use("/api/legie", scraperLimiter, requireAuth, legieRouter);
 app.use("/api/databazeknih", scraperLimiter, requireAuth, databazeknihRouter);
+
+// Per-user key/value settings (plugin order, etc.) synced across devices.
+app.use("/api/settings", writeLimiter, requireAuth, settingsRouter);
 
 // Client error reports are fire-and-forget telemetry — intentionally public so
 // unauthenticated errors (e.g. a crash on the login page) still reach us.

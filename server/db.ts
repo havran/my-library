@@ -52,6 +52,15 @@ db.exec(`
     createdAt     TEXT NOT NULL,
     updatedAt     TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS user_settings (
+    user_id    TEXT NOT NULL,
+    key        TEXT NOT NULL,
+    value      TEXT NOT NULL,
+    updatedAt  TEXT NOT NULL,
+    PRIMARY KEY (user_id, key),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 export interface UserRow {
@@ -88,6 +97,30 @@ export function updateUserPassword(id: string, passwordHash: string): void {
     new Date().toISOString(),
     id,
   );
+}
+
+export function getAllUserSettings(userId: string): Record<string, unknown> {
+  const rows = db.prepare("SELECT key, value FROM user_settings WHERE user_id = ?").all(userId) as {
+    key: string;
+    value: string;
+  }[];
+  const out: Record<string, unknown> = {};
+  for (const r of rows) {
+    try {
+      out[r.key] = JSON.parse(r.value);
+    } catch {
+      // Corrupt row — skip rather than poison the whole settings payload.
+    }
+  }
+  return out;
+}
+
+export function setUserSetting(userId: string, key: string, value: unknown): void {
+  db.prepare(
+    `INSERT INTO user_settings (user_id, key, value, updatedAt)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
+  ).run(userId, key, JSON.stringify(value), new Date().toISOString());
 }
 
 function toBook(row: Record<string, unknown>): Book {
