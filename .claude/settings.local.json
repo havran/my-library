@@ -58,7 +58,9 @@
       "Bash(cp CLAUDE.md /tmp/CLAUDE.md.full)",
       "Bash(cp server/index.ts /tmp/server-index.ts.full)",
       "Bash(git checkout *)",
-      "Bash(rtk diff *)"
+      "Bash(rtk diff *)",
+      "Bash(rtk tsc *)",
+      "Bash(rtk npm *)"
     ]
   },
   "hooks": {
