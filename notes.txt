@@ -1,2 +1,0 @@
-claude --resume 22a52fd4-90d7-4464-b63d-8d8b6a5e8112
-
