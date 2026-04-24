@@ -68,7 +68,9 @@
       "Bash(rtk curl *)",
       "Bash(timeout 12 npx tsx server/index.ts)",
       "Bash(rtk rsync *)",
-      "Bash(rtk vitest *)"
+      "Bash(rtk vitest *)",
+      "Bash(git mv *)",
+      "Bash(rtk wc *)"
     ]
   },
   "hooks": {
