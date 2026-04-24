@@ -13,15 +13,12 @@ import { attachUser, requireAuth, seedDefaultAdmin } from "./auth.js";
 import { authRouter } from "./routes/auth.js";
 import { booksRouter, exportRouter, importRouter } from "./routes/books.js";
 import { isbnOcrRouter } from "./routes/isbnOcr.js";
-import { cbdbRouter } from "./routes/sources/cbdb.js";
 import { legieRouter } from "./routes/sources/legie.js";
-import { databazeknihRouter } from "./routes/sources/databazeknih.js";
-import { googleBooksRouter } from "./routes/sources/googleBooks.js";
-import { openLibraryRouter } from "./routes/sources/openLibrary.js";
-import { nkpRouter } from "./routes/sources/nkp.js";
-import { obalkyKnihRouter } from "./routes/sources/obalkyKnih.js";
 import { clientErrorRouter } from "./routes/clientError.js";
 import { settingsRouter } from "./routes/settings.js";
+import { metadataRouter, pluginsRouter } from "./routes/metadata.js";
+import { COVER_DIR } from "./services/plugins/coverCache.js";
+import { mkdirSync } from "fs";
 import {
   globalLimiter,
   writeLimiter,
@@ -86,16 +83,27 @@ app.use("/api/import", writeLimiter, importRouter);
 
 // Scrapers + OCR only make sense for authenticated users adding books.
 app.use("/api/isbn-ocr", ocrLimiter, requireAuth, isbnOcrRouter);
-app.use("/api/cbdb", scraperLimiter, requireAuth, cbdbRouter);
+// /api/legie stays for series-page and slug-based lookups (SeriesWizard).
+// All other providers are reached via /api/metadata.
 app.use("/api/legie", scraperLimiter, requireAuth, legieRouter);
-app.use("/api/databazeknih", scraperLimiter, requireAuth, databazeknihRouter);
-app.use("/api/googleBooks", scraperLimiter, requireAuth, googleBooksRouter);
-app.use("/api/openLibrary", scraperLimiter, requireAuth, openLibraryRouter);
-app.use("/api/nkp", scraperLimiter, requireAuth, nkpRouter);
-app.use("/api/obalkyKnih", scraperLimiter, requireAuth, obalkyKnihRouter);
 
 // Per-user key/value settings (plugin order, etc.) synced across devices.
 app.use("/api/settings", writeLimiter, requireAuth, settingsRouter);
+
+// Unified metadata — replaces per-provider scrapers/proxies on the client.
+app.use("/api/metadata", scraperLimiter, requireAuth, metadataRouter);
+app.use("/api/plugins", requireAuth, pluginsRouter);
+
+// Server-side cover cache. Served publicly — hashed filenames are unguessable.
+mkdirSync(COVER_DIR, { recursive: true });
+app.use(
+  "/api/covers",
+  express.static(COVER_DIR, {
+    maxAge: "7d",
+    immutable: true,
+    fallthrough: false,
+  }),
+);
 
 // Client error reports are fire-and-forget telemetry — intentionally public so
 // unauthenticated errors (e.g. a crash on the login page) still reach us.

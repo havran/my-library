@@ -1,23 +1,7 @@
 import { create } from "zustand";
-import type { BookSourcePlugin, SearchCapability } from "./types";
-import { getCapabilities } from "./types";
 import { saveSetting } from "@/services/userSettings";
 
-const plugins = new Map<string, BookSourcePlugin>();
 const SETTING_KEY = "plugins";
-
-export function registerPlugin(p: BookSourcePlugin): void {
-  plugins.set(p.id, p);
-  ensureInOrder(p.id);
-}
-
-export function allPlugins(): BookSourcePlugin[] {
-  return Array.from(plugins.values());
-}
-
-export function getPlugin(id: string): BookSourcePlugin | undefined {
-  return plugins.get(id);
-}
 
 interface PluginConfigState {
   order: string[];
@@ -26,7 +10,7 @@ interface PluginConfigState {
   setOrder(order: string[]): void;
   toggle(id: string, enabled: boolean): void;
   movePlugin(id: string, delta: number): void;
-  reset(): void;
+  reset(defaults: string[]): void;
   hydrate(config: { order?: string[]; disabled?: string[] } | null): void;
 }
 
@@ -56,15 +40,12 @@ export const usePluginConfig = create<PluginConfigState>()((set, get) => ({
     set({ order });
     persist(get());
   },
-  reset: () => {
-    set({ order: Array.from(plugins.keys()), disabled: [] });
+  reset: (defaults) => {
+    set({ order: defaults, disabled: [] });
     persist(get());
   },
-  // Called once after auth load completes. Until then, writes are buffered
-  // into local state but not synced — otherwise we'd clobber the server copy
-  // with defaults during the brief window before hydrate lands.
   hydrate: (config) => {
-    const order = config?.order ?? Array.from(plugins.keys());
+    const order = config?.order ?? [];
     const disabled = config?.disabled ?? [];
     set({ order, disabled, hydrated: true });
   },
@@ -75,49 +56,7 @@ function persist(state: PluginConfigState): void {
   saveSetting(SETTING_KEY, { order: state.order, disabled: state.disabled });
 }
 
-function ensureInOrder(id: string): void {
-  const { order } = usePluginConfig.getState();
-  if (!order.includes(id)) {
-    usePluginConfig.setState({ order: [...order, id] });
-  }
-}
-
-/** Reset to in-memory defaults (no server write). Used on logout. */
+/** Reset to blank in-memory state (no server write). Used on logout. */
 export function resetPluginConfigLocal(): void {
-  usePluginConfig.setState({
-    order: Array.from(plugins.keys()),
-    disabled: [],
-    hydrated: false,
-  });
-}
-
-/** Enabled plugins supporting `cap`, in user-priority order. */
-export function pluginsFor(cap: SearchCapability): BookSourcePlugin[] {
-  const { order, disabled } = usePluginConfig.getState();
-  const disabledSet = new Set(disabled);
-  const seen = new Set<string>();
-  const out: BookSourcePlugin[] = [];
-  for (const id of order) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    if (disabledSet.has(id)) continue;
-    const p = plugins.get(id);
-    if (!p) continue;
-    if (!getCapabilities(p).includes(cap)) continue;
-    out.push(p);
-  }
-  // Tail: any registered plugins not in the persisted order yet
-  for (const p of plugins.values()) {
-    if (seen.has(p.id)) continue;
-    if (disabledSet.has(p.id)) continue;
-    if (!getCapabilities(p).includes(cap)) continue;
-    out.push(p);
-  }
-  return out;
-}
-
-/** Priority index (lower = earlier). Unknown IDs sort to the end. */
-export function priorityIndex(): Map<string, number> {
-  const { order } = usePluginConfig.getState();
-  return new Map(order.map((id, i) => [id, i] as const));
+  usePluginConfig.setState({ order: [], disabled: [], hydrated: false });
 }

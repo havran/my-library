@@ -1,6 +1,5 @@
-import { Router } from "express";
-import { rateLimitedFetch, CZ_BROWSER_HEADERS } from "../../http.js";
-import { logger } from "../../logger.js";
+import { rateLimitedFetch, CZ_BROWSER_HEADERS } from "../../../http.js";
+import type { BookSearchResult, BookSourcePlugin } from "../types.js";
 
 export interface DatabazeknihBook {
   isbn: string | null;
@@ -31,8 +30,7 @@ function stripTags(s: string): string {
   return s.replace(/<[^>]+>/g, "");
 }
 
-// Site ratings are on a 0–5 scale; normalize to 0–100 to match what the rest
-// of the app assumes (Google Books / cbdb return percents).
+// Site ratings are 0–5; normalize to 0–100 to match Google Books / cbdb.
 function toPercentRating(raw: string | number | undefined | null): number | null {
   if (raw === undefined || raw === null || raw === "") return null;
   const n = parseFloat(String(raw));
@@ -80,8 +78,7 @@ export function parseDatabazeknihBookPage(html: string): DatabazeknihBook | null
     if (g) genres.push(g);
   }
 
-  // Description sits in <p class='new2 odtop'>preview<span class='end_text …'>rest</span>"… celý text"</p>.
-  // The JSON-LD description is truncated, so prefer the DOM version when present.
+  // JSON-LD description is truncated. Prefer DOM version when present.
   let description = ld.description ?? "";
   const descMatch = html.match(
     /<p class=['"]new2[^'"]*['"][^>]*>([\s\S]*?)<a[^>]*class=['"]show_hide_more/,
@@ -101,7 +98,7 @@ export function parseDatabazeknihBookPage(html: string): DatabazeknihBook | null
   const numMatch = html.match(/<span[^>]*>\s*(\d+)\.\s*díl\s*<\/span>/i);
   if (numMatch) seriesNumber = numMatch[1];
 
-  // pageCount is loaded asynchronously via "více info..." — skip it here.
+  // pageCount loaded asynchronously via "více info…" — skip here.
   const pageCount = null;
 
   return {
@@ -134,58 +131,70 @@ export function parseDatabazeknihSearchLinks(html: string): string[] {
   return links;
 }
 
-export const databazeknihRouter: Router = Router();
+async function fetchDbk(
+  param: "isbn" | "q",
+  value: string,
+  signal: AbortSignal,
+): Promise<BookSearchResult | null> {
+  const r1 = await rateLimitedFetch(
+    `https://www.databazeknih.cz/search?q=${encodeURIComponent(value)}`,
+    { headers: CZ_BROWSER_HEADERS, redirect: "follow", signal },
+  );
+  if (!r1.ok) return null;
+  const html1 = await r1.text();
+  const finalUrl = r1.url;
 
-databazeknihRouter.get("/", async (req, res) => {
-  const isbn = String(req.query.isbn ?? "").trim();
-  const q = String(req.query.q ?? "").trim();
-  const query = isbn || q;
-  if (!query) {
-    res.status(400).json({ error: "isbn or q required" });
-    return;
+  if (finalUrl.includes("/prehled-knihy/")) {
+    const book = parseDatabazeknihBookPage(html1);
+    if (book) return toResult(book, param, value);
   }
 
-  try {
-    const r1 = await rateLimitedFetch(
-      `https://www.databazeknih.cz/search?q=${encodeURIComponent(query)}`,
-      {
-        headers: CZ_BROWSER_HEADERS,
-        redirect: "follow",
-        signal: AbortSignal.timeout(10000),
-      },
-    );
-    const html1 = await r1.text();
-    const finalUrl = r1.url;
+  const links = parseDatabazeknihSearchLinks(html1);
+  if (!links.length) return null;
 
-    if (finalUrl.includes("/prehled-knihy/")) {
-      const book = parseDatabazeknihBookPage(html1);
-      if (book) {
-        res.json(book);
-        return;
-      }
-    }
+  const r2 = await rateLimitedFetch(`https://www.databazeknih.cz${links[0]}`, {
+    headers: CZ_BROWSER_HEADERS,
+    signal,
+  });
+  if (!r2.ok) return null;
+  const book = parseDatabazeknihBookPage(await r2.text());
+  return book ? toResult(book, param, value) : null;
+}
 
-    const links = parseDatabazeknihSearchLinks(html1);
-    if (links.length === 0) {
-      res.status(404).json({ error: "Not found" });
-      return;
-    }
+function toResult(b: DatabazeknihBook, param: "isbn" | "q", value: string): BookSearchResult {
+  return {
+    isbn: b.isbn ?? (param === "isbn" ? value : null),
+    title: b.title,
+    authors: b.authors,
+    genres: b.genres,
+    description: b.description,
+    publisher: b.publisher,
+    pageCount: b.pageCount,
+    coverUrl: b.coverUrl,
+    averageRating: b.averageRating,
+    ratingsCount: b.ratingsCount,
+    series: b.series,
+    seriesNumber: b.seriesNumber,
+  };
+}
 
-    const r2 = await rateLimitedFetch(`https://www.databazeknih.cz${links[0]}`, {
-      headers: CZ_BROWSER_HEADERS,
-      signal: AbortSignal.timeout(10000),
-    });
-    const html2 = await r2.text();
-    const book = parseDatabazeknihBookPage(html2);
-    if (book) {
-      res.json(book);
-      return;
-    }
+export const databazeknihPlugin: BookSourcePlugin = {
+  id: "databazeknih",
+  name: "databazeknih.cz",
+  description: "Czech book database.",
+  timeoutMs: 10000,
 
-    res.status(404).json({ error: "Not found" });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "databazeknih error";
-    logger.warn({ source: "databazeknih", query, err: msg }, "databazeknih proxy error");
-    res.status(504).json({ error: "databazeknih timeout or error" });
-  }
-});
+  searchByISBN: (isbn, signal) => fetchDbk("isbn", isbn, signal),
+
+  async searchByTitle(title, signal) {
+    const b = await fetchDbk("q", title, signal);
+    return b ? [b] : [];
+  },
+
+  async findCovers({ isbn, title }, signal) {
+    const key = isbn || title;
+    if (!key) return [];
+    const b = await fetchDbk(isbn ? "isbn" : "q", key, signal);
+    return b?.coverUrl ? [b.coverUrl] : [];
+  },
+};

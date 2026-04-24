@@ -1,6 +1,10 @@
-import type { BookSearchResult } from "@/types/book";
+import type { BookSearchResult } from "../../../src/types/book.js";
+
+export type { BookSearchResult };
 
 export type SearchCapability = "isbn" | "title" | "author" | "series" | "text" | "cover";
+
+export type PluginStatus = "ok" | "empty" | "error" | "timeout";
 
 export interface CoverSearchContext {
   isbn?: string;
@@ -31,4 +35,9 @@ export function getCapabilities(p: BookSourcePlugin): SearchCapability[] {
   if (p.searchByText) caps.push("text");
   if (p.findCovers) caps.push("cover");
   return caps;
+}
+
+export interface PluginConfig {
+  order: string[];
+  disabled: string[];
 }

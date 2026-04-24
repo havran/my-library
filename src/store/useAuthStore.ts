@@ -3,6 +3,7 @@ import type { AuthUser } from "@/services/auth";
 import * as auth from "@/services/auth";
 import { loadAllSettings } from "@/services/userSettings";
 import { usePluginConfig, resetPluginConfigLocal } from "@/services/plugins/registry";
+import { invalidatePluginsMeta } from "@/services/plugins/meta";
 
 interface AuthState {
   user: AuthUser | null;
@@ -42,6 +43,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     await auth.logout();
     set({ user: null });
     resetPluginConfigLocal();
+    invalidatePluginsMeta();
   },
 
   changePassword: async (currentPassword, newPassword) => {

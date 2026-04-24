@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCbdbBookPage, parseCbdbSearchLinks } from "./cbdb";
+import { parseCbdbBookPage, parseCbdbSearchLinks } from "./cbdb.js";
 
 describe("parseCbdbBookPage", () => {
   const jsonLd = (obj: object) =>

@@ -60,7 +60,12 @@
       "Bash(git checkout *)",
       "Bash(rtk diff *)",
       "Bash(rtk tsc *)",
-      "Bash(rtk npm *)"
+      "Bash(rtk npm *)",
+      "Bash(rtk grep *)",
+      "Bash(rtk ls *)",
+      "Bash(sed -i 's|from \"./cbdb\"|from \"./cbdb.js\"|' server/services/plugins/sources/cbdb.test.ts)",
+      "Bash(sed -i 's|from \"./databazeknih\"|from \"./databazeknih.js\"|' server/services/plugins/sources/databazeknih.test.ts)",
+      "Bash(rtk curl *)"
     ]
   },
   "hooks": {

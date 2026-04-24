@@ -1,6 +1,5 @@
-import { Router } from "express";
-import { rateLimitedFetch, CZ_BROWSER_HEADERS } from "../../http.js";
-import { logger } from "../../logger.js";
+import { rateLimitedFetch, CZ_BROWSER_HEADERS } from "../../../http.js";
+import type { BookSearchResult, BookSourcePlugin } from "../types.js";
 
 export interface CbdbBook {
   isbn: string | null;
@@ -89,58 +88,60 @@ export function parseCbdbSearchLinks(html: string): string[] {
   return links;
 }
 
-export const cbdbRouter: Router = Router();
+async function fetchCbdb(query: string, signal: AbortSignal): Promise<BookSearchResult | null> {
+  const r1 = await rateLimitedFetch(
+    `https://www.cbdb.cz/hledat?text=${encodeURIComponent(query)}`,
+    { headers: CZ_BROWSER_HEADERS, redirect: "follow", signal },
+  );
+  if (!r1.ok) return null;
+  const html1 = await r1.text();
+  const finalUrl = r1.url;
 
-cbdbRouter.get("/", async (req, res) => {
-  const isbn = String(req.query.isbn ?? "").trim();
-  const q = String(req.query.q ?? "").trim();
-  const query = isbn || q;
-  if (!query) {
-    res.status(400).json({ error: "isbn or q required" });
-    return;
+  if (finalUrl.includes("/kniha-")) {
+    const book = parseCbdbBookPage(html1);
+    if (book) return toResult(book, query);
   }
 
-  try {
-    const r1 = await rateLimitedFetch(
-      `https://www.cbdb.cz/hledat?text=${encodeURIComponent(query)}`,
-      {
-        headers: CZ_BROWSER_HEADERS,
-        redirect: "follow",
-        signal: AbortSignal.timeout(10000),
-      },
-    );
-    const html1 = await r1.text();
-    const finalUrl = r1.url;
+  const links = parseCbdbSearchLinks(html1);
+  if (!links.length) return null;
 
-    if (finalUrl.includes("/kniha-")) {
-      const book = parseCbdbBookPage(html1);
-      if (book) {
-        res.json(book);
-        return;
-      }
-    }
+  const r2 = await rateLimitedFetch(`https://www.cbdb.cz/${links[0]}`, {
+    headers: CZ_BROWSER_HEADERS,
+    signal,
+  });
+  if (!r2.ok) return null;
+  const book = parseCbdbBookPage(await r2.text());
+  return book ? toResult(book, query) : null;
+}
 
-    const links = parseCbdbSearchLinks(html1);
-    if (links.length === 0) {
-      res.status(404).json({ error: "Not found" });
-      return;
-    }
+function toResult(b: CbdbBook, queryIsbn: string): BookSearchResult {
+  return {
+    isbn: b.isbn ?? (/^\d+$/.test(queryIsbn) ? queryIsbn : null),
+    title: b.title,
+    authors: b.authors,
+    genres: b.genres,
+    description: b.description,
+    publisher: b.publisher,
+    pageCount: b.pageCount,
+    coverUrl: b.coverUrl,
+    averageRating: b.averageRating,
+    ratingsCount: b.ratingsCount,
+  };
+}
 
-    const r2 = await rateLimitedFetch(`https://www.cbdb.cz/${links[0]}`, {
-      headers: CZ_BROWSER_HEADERS,
-      signal: AbortSignal.timeout(10000),
-    });
-    const html2 = await r2.text();
-    const book = parseCbdbBookPage(html2);
-    if (book) {
-      res.json(book);
-      return;
-    }
+export const cbdbPlugin: BookSourcePlugin = {
+  id: "cbdb",
+  name: "cbdb.cz",
+  description: "Czech book database.",
+  timeoutMs: 10000,
 
-    res.status(404).json({ error: "Not found" });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "cbdb error";
-    logger.warn({ source: "cbdb", query, err: msg }, "cbdb proxy error");
-    res.status(504).json({ error: "cbdb timeout or error" });
-  }
-});
+  async searchByISBN(isbn, signal) {
+    return fetchCbdb(isbn, signal);
+  },
+
+  async findCovers({ isbn }, signal) {
+    if (!isbn) return [];
+    const b = await fetchCbdb(isbn, signal);
+    return b?.coverUrl ? [b.coverUrl] : [];
+  },
+};

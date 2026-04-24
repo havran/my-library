@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDatabazeknihBookPage, parseDatabazeknihSearchLinks } from "./databazeknih";
+import { parseDatabazeknihBookPage, parseDatabazeknihSearchLinks } from "./databazeknih.js";
 
 const jsonLd = (obj: object) =>
   `<script type="application/ld+json">${JSON.stringify(obj)}</script>`;

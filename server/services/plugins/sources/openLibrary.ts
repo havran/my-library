@@ -1,8 +1,18 @@
-import type { BookSourcePlugin } from "../types";
-import { apiFetch } from "@/services/apiFetch";
+import { rateLimitedFetch } from "../../../http.js";
+import type { BookSearchResult, BookSourcePlugin } from "../types.js";
 
-const PROXY = "/api/openLibrary";
+const UPSTREAM = "https://openlibrary.org/api/books";
 const COVERS = "https://covers.openlibrary.org";
+
+interface OlBook {
+  title?: string;
+  authors?: { name: string }[];
+  subjects?: { name: string }[];
+  notes?: string;
+  publishers?: { name: string }[];
+  number_of_pages?: number;
+  cover?: { large?: string; medium?: string };
+}
 
 export const openLibraryPlugin: BookSourcePlugin = {
   id: "open-library",
@@ -16,16 +26,16 @@ export const openLibraryPlugin: BookSourcePlugin = {
       format: "json",
       jscmd: "data",
     });
-    const res = await apiFetch(`${PROXY}?${params.toString()}`, { signal });
-    if (!res.ok) return null;
-    const data = await res.json();
+    const r = await rateLimitedFetch(`${UPSTREAM}?${params.toString()}`, { signal });
+    if (!r.ok) return null;
+    const data = (await r.json()) as Record<string, OlBook>;
     const b = data[`ISBN:${isbn}`];
     if (!b) return null;
     return {
       isbn,
       title: b.title || "Unknown Title",
-      authors: (b.authors || []).map((a: any) => a.name),
-      genres: (b.subjects || []).slice(0, 5).map((s: any) => s.name),
+      authors: (b.authors || []).map((a) => a.name),
+      genres: (b.subjects || []).slice(0, 5).map((s) => s.name),
       description: b.notes || "",
       publisher: b.publishers?.[0]?.name || "",
       pageCount: b.number_of_pages || null,

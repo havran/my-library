@@ -1,14 +1,28 @@
-import type { BookSearchResult } from "@/types/book";
-import type { BookSourcePlugin } from "../types";
-import { apiFetch } from "@/services/apiFetch";
+import { rateLimitedFetch } from "../../../http.js";
+import type { BookSearchResult, BookSourcePlugin } from "../types.js";
 
-const PROXY = "/api/googleBooks";
+const UPSTREAM = "https://www.googleapis.com/books/v1/volumes";
 
-export function parseGoogleBook(item: any): BookSearchResult {
+interface GoogleVolume {
+  volumeInfo?: {
+    title?: string;
+    authors?: string[];
+    categories?: string[];
+    description?: string;
+    publisher?: string;
+    pageCount?: number;
+    averageRating?: number;
+    ratingsCount?: number;
+    industryIdentifiers?: Array<{ type: string; identifier: string }>;
+    imageLinks?: { thumbnail?: string; smallThumbnail?: string };
+  };
+}
+
+function parseGoogleBook(item: GoogleVolume): BookSearchResult {
   const v = item.volumeInfo || {};
   const identifiers = v.industryIdentifiers || [];
-  const isbn13 = identifiers.find((i: any) => i.type === "ISBN_13");
-  const isbn10 = identifiers.find((i: any) => i.type === "ISBN_10");
+  const isbn13 = identifiers.find((i) => i.type === "ISBN_13");
+  const isbn10 = identifiers.find((i) => i.type === "ISBN_10");
 
   const thumbnail = v.imageLinks?.thumbnail || v.imageLinks?.smallThumbnail || "";
   const coverUrl = thumbnail.replace("http:", "https:").replace("zoom=1", "zoom=2");
@@ -27,12 +41,12 @@ export function parseGoogleBook(item: any): BookSearchResult {
   };
 }
 
-async function query(q: string, signal: AbortSignal, max = 10) {
+async function query(q: string, signal: AbortSignal, max = 10): Promise<GoogleVolume[]> {
   const params = new URLSearchParams({ q, maxResults: String(max) });
-  const res = await apiFetch(`${PROXY}?${params.toString()}`, { signal });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return (data.items || []) as any[];
+  const r = await rateLimitedFetch(`${UPSTREAM}?${params.toString()}`, { signal });
+  if (!r.ok) return [];
+  const data = (await r.json()) as { items?: GoogleVolume[] };
+  return data.items || [];
 }
 
 export const googleBooksPlugin: BookSourcePlugin = {
@@ -65,7 +79,7 @@ export const googleBooksPlugin: BookSourcePlugin = {
     const q = isbn ? `isbn:${isbn}` : title ? title : "";
     if (!q) return [];
     const items = await query(q, signal, 1);
-    const thumb = items[0]?.volumeInfo?.imageLinks?.thumbnail as string | undefined;
+    const thumb = items[0]?.volumeInfo?.imageLinks?.thumbnail;
     if (!thumb) return [];
     return [thumb.replace("http:", "https:").replace("zoom=1", "zoom=2")];
   },

@@ -5,9 +5,6 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { ThemeProvider } from "@/utils/theme";
 import Layout from "@/components/Layout";
 import RequireAuth from "@/components/RequireAuth";
-import { registerBuiltinPlugins } from "@/services/plugins";
-
-registerBuiltinPlugins();
 
 // Route-level code splitting — each page is a separate chunk
 const Scan = lazy(() => import("@/pages/Scan"));

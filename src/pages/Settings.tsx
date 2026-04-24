@@ -1,6 +1,7 @@
 import { ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
-import { allPlugins, getPlugin, usePluginConfig, getCapabilities } from "@/services/plugins";
-import type { BookSourcePlugin, SearchCapability } from "@/services/plugins";
+import { usePluginConfig } from "@/services/plugins/registry";
+import { usePluginsMeta } from "@/services/plugins/meta";
+import type { PluginMeta, SearchCapability } from "@/services/plugins/meta";
 import { PasswordChangeCard } from "@/components/PasswordChangeCard";
 
 const CAP_LABEL: Record<SearchCapability, string> = {
@@ -28,14 +29,13 @@ function PluginRow({
   onToggle,
   onMove,
 }: {
-  plugin: BookSourcePlugin;
+  plugin: PluginMeta;
   position: number;
   total: number;
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
   onMove: (delta: number) => void;
 }) {
-  const caps = getCapabilities(plugin);
   return (
     <li className="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl">
       <input
@@ -54,7 +54,7 @@ function PluginRow({
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{plugin.description}</p>
         )}
         <div className="flex flex-wrap gap-1 mt-2">
-          {caps.map((c) => (
+          {plugin.capabilities.map((c) => (
             <CapabilityBadge key={c} cap={c} />
           ))}
         </div>
@@ -83,19 +83,21 @@ function PluginRow({
 
 export default function Settings() {
   const { order, disabled, movePlugin, toggle, reset } = usePluginConfig();
+  const { plugins, defaultOrder } = usePluginsMeta();
   const disabledSet = new Set(disabled);
+  const byId = new Map(plugins.map((p) => [p.id, p]));
 
-  // Resolve plugin objects in user-defined order, then append any unseen registered plugins
+  // Render in user order, then tail on any server plugins not yet present
   const seen = new Set<string>();
-  const ordered: BookSourcePlugin[] = [];
+  const ordered: PluginMeta[] = [];
   for (const id of order) {
-    const p = getPlugin(id);
+    const p = byId.get(id);
     if (p && !seen.has(id)) {
       seen.add(id);
       ordered.push(p);
     }
   }
-  for (const p of allPlugins()) {
+  for (const p of plugins) {
     if (!seen.has(p.id)) {
       seen.add(p.id);
       ordered.push(p);
@@ -118,7 +120,7 @@ export default function Settings() {
             </p>
           </div>
           <button
-            onClick={reset}
+            onClick={() => reset(defaultOrder)}
             className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
           >
             <RotateCcw size={14} />

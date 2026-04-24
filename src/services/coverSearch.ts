@@ -1,6 +1,6 @@
 import { searchByText } from "./bookApi";
 import { fetchImageAsBase64 } from "./imageCache";
-import { runCoverSearch } from "./plugins";
+import { apiFetch } from "./apiFetch";
 import type { BookSearchResult } from "@/types/book";
 
 export interface OCRResult {
@@ -8,42 +8,40 @@ export interface OCRResult {
   query: string;
 }
 
-function tryImageUrl(url: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const timer = setTimeout(() => {
-      img.src = "";
-      resolve(false);
-    }, 5000);
-    img.onload = () => {
-      clearTimeout(timer);
-      resolve(true);
-    };
-    img.onerror = () => {
-      clearTimeout(timer);
-      resolve(false);
-    };
-    img.src = url;
-  });
+interface CoverResponse {
+  covers: string[];
+  sources: { id: string; status: string; ms: number }[];
 }
 
-/** Find the first working cover image URL for a book, via registered plugins. */
-export async function searchCoverByISBN(isbn: string, title: string): Promise<string> {
-  const urls = await runCoverSearch({ isbn, title });
-  for (const url of urls) {
-    if (await tryImageUrl(url)) return url;
+async function fetchCovers(params: URLSearchParams): Promise<string[]> {
+  try {
+    const res = await apiFetch(`/api/metadata?mode=cover&${params.toString()}`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as CoverResponse;
+    return data.covers ?? [];
+  } catch {
+    return [];
   }
-  return "";
 }
 
-/** Return all working cover URLs from all enabled plugins, in priority order. */
+/** Find the first cover URL for a book. Server-cached, so first element is safe to use directly. */
+export async function searchCoverByISBN(isbn: string, title: string): Promise<string> {
+  const params = new URLSearchParams();
+  if (isbn) params.set("isbn", isbn);
+  if (title) params.set("title", title);
+  const urls = await fetchCovers(params);
+  return urls[0] ?? "";
+}
+
+/** Return all cover URLs (already server-validated/cached). */
 export async function searchAllCovers(isbn: string, title: string): Promise<string[]> {
-  const urls = await runCoverSearch({ isbn, title });
-  const results = await Promise.all(urls.map(async (url) => ({ url, ok: await tryImageUrl(url) })));
-  return results.filter((r) => r.ok).map((r) => r.url);
+  const params = new URLSearchParams();
+  if (isbn) params.set("isbn", isbn);
+  if (title) params.set("title", title);
+  return fetchCovers(params);
 }
 
-/** Download a cover URL as base64 data URI. */
+/** Download a cover URL as base64 data URI (for offline persistence). */
 export async function downloadCover(url: string): Promise<string> {
   return fetchImageAsBase64(url);
 }

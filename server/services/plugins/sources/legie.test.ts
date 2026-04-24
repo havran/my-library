@@ -5,7 +5,7 @@ import {
   parseLegieSearchLinks,
   parseLegieEditions,
   parseLegieSeriesBooks,
-} from "./legie";
+} from "./legie.js";
 
 describe("parseLegieBookPage", () => {
   const fullPage = (overrides: Partial<Record<string, string>> = {}) => {

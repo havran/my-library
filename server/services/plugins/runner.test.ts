@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { mergeResults } from "./runner";
-import type { BookSearchResult } from "@/types/book";
+import { mergeResults } from "./runner.js";
+import type { BookSearchResult } from "./types.js";
 
 function r(partial: Partial<BookSearchResult>): BookSearchResult {
   return {
@@ -55,7 +55,6 @@ describe("mergeResults", () => {
   });
 
   it("supports enrichment-style merging across fields", () => {
-    // ISBN source provides bibliographic data; enricher adds rating + series
     const bibliographic = r({
       isbn: "123",
       title: "Dune",
