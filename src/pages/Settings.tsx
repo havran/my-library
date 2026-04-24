@@ -1,8 +1,85 @@
 import { ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
+import { useEffect, useState } from "react";
 import { usePluginConfig } from "@/services/plugins/registry";
 import { usePluginsMeta } from "@/services/plugins/meta";
 import type { PluginMeta, SearchCapability } from "@/services/plugins/meta";
 import { PasswordChangeCard } from "@/components/PasswordChangeCard";
+import {
+  fetchServerSettings,
+  setServerOcrProvider,
+  type OcrProviderId,
+} from "@/services/serverSettings";
+import { useAuthStore } from "@/store/useAuthStore";
+
+const OCR_LABELS: Record<OcrProviderId, string> = {
+  paddle: "PaddleOCR (ONNX)",
+  tesseract: "Tesseract.js",
+};
+
+function OcrProviderCard() {
+  const [providers, setProviders] = useState<OcrProviderId[]>([]);
+  const [current, setCurrent] = useState<OcrProviderId | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const s = await fetchServerSettings();
+      if (!alive || !s) return;
+      setProviders(s.ocrProviders);
+      setCurrent(s.ocrProvider);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function onChange(next: OcrProviderId) {
+    if (next === current) return;
+    const prev = current;
+    setCurrent(next);
+    setSaving(true);
+    setError(null);
+    const ok = await setServerOcrProvider(next);
+    setSaving(false);
+    if (!ok) {
+      setCurrent(prev);
+      setError("Failed to save — you may not have admin permission.");
+    }
+  }
+
+  if (!current) return null;
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">OCR Provider</h2>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Engine used for server-side ISBN OCR. Applies immediately.
+      </p>
+      <div className="space-y-2">
+        {providers.map((id) => (
+          <label
+            key={id}
+            className="flex items-center gap-3 p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer"
+          >
+            <input
+              type="radio"
+              name="ocr-provider"
+              value={id}
+              checked={current === id}
+              onChange={() => onChange(id)}
+              disabled={saving}
+              className="w-4 h-4 accent-blue-500"
+            />
+            <span className="font-medium text-gray-900 dark:text-white">{OCR_LABELS[id]}</span>
+          </label>
+        ))}
+      </div>
+      {error && <p className="text-sm text-red-600 dark:text-red-400 mt-2">{error}</p>}
+    </div>
+  );
+}
 
 const CAP_LABEL: Record<SearchCapability, string> = {
   isbn: "ISBN",
@@ -84,6 +161,7 @@ function PluginRow({
 export default function Settings() {
   const { order, disabled, movePlugin, toggle, reset } = usePluginConfig();
   const { plugins, defaultOrder } = usePluginsMeta();
+  const isAdmin = useAuthStore((s) => s.user?.role === "admin");
   const disabledSet = new Set(disabled);
   const byId = new Map(plugins.map((p) => [p.id, p]));
 
@@ -107,6 +185,8 @@ export default function Settings() {
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <PasswordChangeCard />
+
+      {isAdmin && <OcrProviderCard />}
 
       <div>
         <div className="flex items-start justify-between mb-6">

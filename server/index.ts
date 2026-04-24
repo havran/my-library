@@ -16,6 +16,7 @@ import { isbnOcrRouter } from "./routes/isbnOcr.js";
 import { legieRouter } from "./routes/sources/legie.js";
 import { clientErrorRouter } from "./routes/clientError.js";
 import { settingsRouter } from "./routes/settings.js";
+import { serverSettingsRouter } from "./routes/serverSettings.js";
 import { metadataRouter, pluginsRouter } from "./routes/metadata.js";
 import { COVER_DIR } from "./services/plugins/coverCache.js";
 import { mkdirSync } from "fs";
@@ -89,6 +90,10 @@ app.use("/api/legie", scraperLimiter, requireAuth, legieRouter);
 
 // Per-user key/value settings (plugin order, etc.) synced across devices.
 app.use("/api/settings", writeLimiter, requireAuth, settingsRouter);
+
+// Server-wide settings (OCR provider, etc.). GET for any authed user;
+// mutations are admin-only (enforced inside the router).
+app.use("/api/server-settings", writeLimiter, requireAuth, serverSettingsRouter);
 
 // Unified metadata — replaces per-provider scrapers/proxies on the client.
 app.use("/api/metadata", scraperLimiter, requireAuth, metadataRouter);

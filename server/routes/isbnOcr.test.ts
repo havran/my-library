@@ -51,4 +51,13 @@ describe("extractISBN", () => {
   it("prefers ISBN-13 over a coincidental ISBN-10 window inside it", () => {
     expect(extractISBN("9780441172719").isbn).toBe("9780441172719");
   });
+
+  it("extracts ISBN-10 with 'X' check digit", () => {
+    // 0-8050-7371-X is a verified ISBN-10; check digit is X (value 10).
+    expect(extractISBN("ISBN 0-8050-7371-X").isbn).toBe("080507371X");
+  });
+
+  it("accepts lowercase 'x' check digit", () => {
+    expect(extractISBN("080507371x").isbn).toBe("080507371X");
+  });
 });

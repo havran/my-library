@@ -65,7 +65,10 @@
       "Bash(rtk ls *)",
       "Bash(sed -i 's|from \"./cbdb\"|from \"./cbdb.js\"|' server/services/plugins/sources/cbdb.test.ts)",
       "Bash(sed -i 's|from \"./databazeknih\"|from \"./databazeknih.js\"|' server/services/plugins/sources/databazeknih.test.ts)",
-      "Bash(rtk curl *)"
+      "Bash(rtk curl *)",
+      "Bash(timeout 12 npx tsx server/index.ts)",
+      "Bash(rtk rsync *)",
+      "Bash(rtk vitest *)"
     ]
   },
   "hooks": {

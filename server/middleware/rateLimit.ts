@@ -37,7 +37,7 @@ export const scraperLimiter = rateLimit({
   limit: 60,
 });
 
-// OCR is CPU-heavy (sharp + tesseract). Keep it low.
+// OCR is CPU-heavy (sharp + OCR engine). Keep it low.
 export const ocrLimiter = rateLimit({
   ...baseConfig,
   limit: 20,

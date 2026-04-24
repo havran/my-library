@@ -61,6 +61,12 @@ db.exec(`
     PRIMARY KEY (user_id, key),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS server_settings (
+    key       TEXT PRIMARY KEY,
+    value     TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+  );
 `);
 
 export interface UserRow {
@@ -121,6 +127,26 @@ export function setUserSetting(userId: string, key: string, value: unknown): voi
      VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
   ).run(userId, key, JSON.stringify(value), new Date().toISOString());
+}
+
+export function getServerSetting(key: string): unknown {
+  const row = db.prepare("SELECT value FROM server_settings WHERE key = ?").get(key) as
+    | { value: string }
+    | undefined;
+  if (!row) return undefined;
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    return undefined;
+  }
+}
+
+export function setServerSetting(key: string, value: unknown): void {
+  db.prepare(
+    `INSERT INTO server_settings (key, value, updatedAt)
+     VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
+  ).run(key, JSON.stringify(value), new Date().toISOString());
 }
 
 function toBook(row: Record<string, unknown>): Book {
