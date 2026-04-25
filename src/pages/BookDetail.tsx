@@ -11,12 +11,15 @@ import {
   Image as ImageIcon,
   Search,
   RefreshCw,
+  BookCopy,
 } from "lucide-react";
+import type { Book, BookSearchResult } from "@/types/book";
 import { useLibraryStore } from "@/store/useLibraryStore";
 import { GenreBadge } from "@/components/GenreBadge";
 import { CoverPicker } from "@/components/CoverPicker";
+import { EditionPicker } from "@/components/EditionPicker";
 import { searchAllCovers, downloadCover } from "@/services/coverSearch";
-import { fetchByISBN } from "@/services/bookApi";
+import { fetchByISBN, searchEditions } from "@/services/bookApi";
 
 const inputCls =
   "w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow";
@@ -49,6 +52,9 @@ export default function BookDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rescanning, setRescanning] = useState(false);
   const [rescanResult, setRescanResult] = useState<"updated" | "no-change" | "error" | null>(null);
+  const [findingEditions, setFindingEditions] = useState(false);
+  const [editionOptions, setEditionOptions] = useState<BookSearchResult[]>([]);
+  const [editionsNotFound, setEditionsNotFound] = useState(false);
 
   useEffect(() => {
     if (book) {
@@ -147,6 +153,45 @@ export default function BookDetail() {
     }
   };
 
+  const handleFindEditions = async () => {
+    if (!book.title) return;
+    setFindingEditions(true);
+    setEditionsNotFound(false);
+    try {
+      const query = book.authors[0] ? `${book.title} ${book.authors[0]}` : book.title;
+      const results = await searchEditions(query);
+      if (results.length === 0) {
+        setEditionsNotFound(true);
+        setTimeout(() => setEditionsNotFound(false), 3000);
+      } else {
+        setEditionOptions(results);
+      }
+    } finally {
+      setFindingEditions(false);
+    }
+  };
+
+  const handlePickEdition = async (edition: BookSearchResult) => {
+    setEditionOptions([]);
+    const coverBase64 = edition.coverUrl ? (await downloadCover(edition.coverUrl)) || "" : "";
+    const changes: Partial<Book> = {
+      isbn: edition.isbn || book.isbn,
+      title: edition.title || book.title,
+      authors: edition.authors.length ? edition.authors : book.authors,
+      genres: edition.genres.length ? edition.genres : book.genres,
+      description: edition.description || book.description,
+      publisher: edition.publisher || book.publisher,
+      pageCount: edition.pageCount ?? book.pageCount,
+      coverUrl: edition.coverUrl || book.coverUrl,
+      averageRating: edition.averageRating ?? book.averageRating,
+      ratingsCount: edition.ratingsCount ?? book.ratingsCount,
+      series: edition.series || book.series,
+      seriesNumber: edition.seriesNumber || book.seriesNumber,
+    };
+    if (coverBase64) changes.coverBase64 = coverBase64;
+    await updateBook(book.id, changes);
+  };
+
   const findCoverOnline = async () => {
     setSearchingCover(true);
     setCoverNotFound(false);
@@ -234,6 +279,22 @@ export default function BookDetail() {
                 <span className="block w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
               ) : (
                 <Search size={16} />
+              )}
+            </button>
+            <button
+              onClick={handleFindEditions}
+              disabled={findingEditions}
+              title={editionsNotFound ? "No editions found" : "Find editions"}
+              className={`p-2 rounded-xl transition-colors text-sm font-medium disabled:opacity-50 ${
+                editionsNotFound
+                  ? "bg-red-50 dark:bg-red-900/20 text-red-500"
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-500"
+              }`}
+            >
+              {findingEditions ? (
+                <span className="block w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <BookCopy size={16} />
               )}
             </button>
             {book.isbn && (
@@ -441,6 +502,14 @@ export default function BookDetail() {
           covers={coverOptions}
           onSelect={handlePickCover}
           onClose={() => setCoverOptions([])}
+        />
+      )}
+
+      {editionOptions.length > 0 && (
+        <EditionPicker
+          editions={editionOptions}
+          onSelect={handlePickEdition}
+          onClose={() => setEditionOptions([])}
         />
       )}
     </div>

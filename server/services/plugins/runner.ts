@@ -236,6 +236,34 @@ export const runBySeries = (q: string, all: BookSourcePlugin[], cfg: PluginConfi
 export const runByText = (q: string, all: BookSourcePlugin[], cfg: PluginConfig) =>
   runAggregate("text", "searchByText", q, all, cfg);
 
+export async function runEditions(
+  q: string,
+  all: BookSourcePlugin[],
+  cfg: PluginConfig,
+): Promise<AggregateResult> {
+  const ps = pluginsFor(all, cfg, "editions");
+  const wrapped = await Promise.all(
+    ps.map((p) =>
+      withPluginTimeout(
+        p,
+        (s) => p.searchEditions!(q, s),
+        (v) => !v || v.length === 0,
+      ),
+    ),
+  );
+  const seen = new Set<string>();
+  const out: BookSearchResult[] = [];
+  for (const w of wrapped) {
+    for (const r of w.value ?? []) {
+      const key = r.isbn || `${r.coverUrl}::${r.publisher}`;
+      if (key && seen.has(key)) continue;
+      if (key) seen.add(key);
+      out.push(r);
+    }
+  }
+  return { results: out, sources: wrapped.map((w) => w.report) };
+}
+
 export interface CoverRunResult {
   covers: string[];
   sources: PluginCallReport[];

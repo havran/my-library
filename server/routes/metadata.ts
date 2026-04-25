@@ -9,6 +9,7 @@ import {
   runByText,
   runByTitle,
   runCoverSearch,
+  runEditions,
 } from "../services/plugins/runner.js";
 import { cacheCoverUrl } from "../services/plugins/coverCache.js";
 import type { BookSearchResult, PluginConfig } from "../services/plugins/types.js";
@@ -97,6 +98,16 @@ metadataRouter.get("/", async (req, res) => {
           return;
         }
         const { results, sources } = await runByText(q, BUILTIN_PLUGINS, cfg);
+        const rewritten = await Promise.all(results.map(rewriteBookCover));
+        res.json({ results: rewritten, sources });
+        return;
+      }
+      case "editions": {
+        if (!q) {
+          res.status(400).json({ error: "q required" });
+          return;
+        }
+        const { results, sources } = await runEditions(q, BUILTIN_PLUGINS, cfg);
         const rewritten = await Promise.all(results.map(rewriteBookCover));
         res.json({ results: rewritten, sources });
         return;

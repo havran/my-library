@@ -53,3 +53,10 @@ export async function searchByText(query: string): Promise<BookSearchResult[]> {
   );
   return data?.results ?? [];
 }
+
+export async function searchEditions(query: string): Promise<BookSearchResult[]> {
+  const data = await getJson<ListResponse>(
+    `/api/metadata?mode=editions&q=${encodeURIComponent(query)}`,
+  );
+  return data?.results ?? [];
+}

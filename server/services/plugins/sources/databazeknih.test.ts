@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseDatabazeknihBookPage, parseDatabazeknihSearchLinks } from "./databazeknih.js";
+import {
+  parseDatabazeknihBookPage,
+  parseDatabazeknihSearchLinks,
+  parseDbkEditionLanguageSlugs,
+  parseDbkEditions,
+} from "./databazeknih.js";
 
 const jsonLd = (obj: object) =>
   `<script type="application/ld+json">${JSON.stringify(obj)}</script>`;
@@ -95,5 +100,52 @@ describe("parseDatabazeknihSearchLinks", () => {
   it("de-duplicates repeated links", () => {
     const html = `<a href="/prehled-knihy/x-1">A</a>` + `<a href='/prehled-knihy/x-1'>A</a>`;
     expect(parseDatabazeknihSearchLinks(html)).toEqual(["/prehled-knihy/x-1"]);
+  });
+});
+
+describe("parseDbkEditionLanguageSlugs", () => {
+  it("collects unique language codes from tab links", () => {
+    const html = `
+      <div class="tab now"><a href='/dalsi-vydani/foo-1?lang=cz'></a></div>
+      <div class="tab"><a href='/dalsi-vydani/foo-1?lang=sk'></a></div>
+      <a href="/dalsi-vydani/foo-1?lang=cz">dup</a>
+    `;
+    expect(parseDbkEditionLanguageSlugs(html).sort()).toEqual(["cz", "sk"]);
+  });
+});
+
+describe("parseDbkEditions", () => {
+  const item = (id: string, title: string, year: string, publisher: string, isbn: string) => `
+    <a href="/dalsi-vydani/${id}">
+      <picture>
+        <img src="https://cdn/img-${id}.jpg" alt="Obálka knihy ${title} (${year})" />
+      </picture>
+    </a>
+    <h6>${title}</h6>
+    <p class='new odtopm'>
+      ${year}<span class="pozn_light">,</span>
+      <a href="/nakladatelstvi/${publisher}-99">${publisher}</a>
+      <span class="pozn odtopm fright">ISBN: ${isbn}</span>
+    </p>
+    <hr class='oddown' />
+  `;
+
+  it("parses cover/title/year/publisher/isbn for each edition", () => {
+    const html = `<a name='editions'></a>${item("a-1", "Lovci Duny", "2023", "Baronet", "978-80-269-2005-2")}${item("b-2", "Lovci Duny", "2007", "Baronet", "80-7384-000-6")}`;
+    const eds = parseDbkEditions(html, "cz");
+    expect(eds).toHaveLength(2);
+    expect(eds[0]).toMatchObject({
+      title: "Lovci Duny",
+      year: "2023",
+      publisher: "Baronet",
+      isbn: "9788026920052",
+      language: "cz",
+    });
+    expect(eds[1]).toMatchObject({ year: "2007", isbn: "8073840006" });
+  });
+
+  it("skips chunks without a cover image", () => {
+    const html = `<a name='editions'></a><a href="/dalsi-vydani/no-cover-1">no img</a><hr class='oddown' />`;
+    expect(parseDbkEditions(html)).toHaveLength(0);
   });
 });

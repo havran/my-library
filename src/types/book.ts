@@ -37,4 +37,6 @@ export interface BookSearchResult {
   series?: string;
   seriesNumber?: string;
   serieSlug?: string;
+  year?: string;
+  language?: string;
 }

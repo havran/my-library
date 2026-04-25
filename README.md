@@ -7,6 +7,7 @@ A personal book library — keep track of everything you own (or want), scan ISB
 - **Scan ISBNs** with the device camera (EAN-13 barcode reader) or point at the back cover and let OCR pick the ISBN off the printed number.
 - **Pull metadata** from multiple sources in parallel — [cbdb.cz](https://cbdb.cz), [databazeknih.cz](https://www.databazeknih.cz), [legie.info](https://www.legie.info), the Czech National Library (NKP), Google Books, Open Library, and obalkyknih.cz. The highest-priority non-empty field wins, so Czech sources fill in things Google misses (and vice versa). Users can reorder or disable sources in Settings.
 - **Cover search & picker** — fetch multiple cover candidates per book, pick the one you like, store it locally as base64 so it shows offline.
+- **Edition picker** — open a book and click the editions icon to list every published edition (per-language, with cover, year, publisher, ISBN). Pick one to overwrite the book's metadata + cover. Handy for entries that started without an ISBN.
 - **Search your collection** by title, author, genre, or ISBN. Filter by read/unread. Sort by date added, title, or author.
 - **Series wizard** — given a legie.info series page, fetch the ordered book list and flag which volumes you're missing.
 - **Stats** — counts, read progress, top authors/genres.

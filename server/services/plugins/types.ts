@@ -2,7 +2,14 @@ import type { BookSearchResult } from "../../../src/types/book.js";
 
 export type { BookSearchResult };
 
-export type SearchCapability = "isbn" | "title" | "author" | "series" | "text" | "cover";
+export type SearchCapability =
+  | "isbn"
+  | "title"
+  | "author"
+  | "series"
+  | "text"
+  | "cover"
+  | "editions";
 
 export type PluginStatus = "ok" | "empty" | "error" | "timeout";
 
@@ -24,6 +31,7 @@ export interface BookSourcePlugin {
   searchBySeries?(series: string, signal: AbortSignal): Promise<BookSearchResult[]>;
   searchByText?(text: string, signal: AbortSignal): Promise<BookSearchResult[]>;
   findCovers?(ctx: CoverSearchContext, signal: AbortSignal): Promise<string[]>;
+  searchEditions?(query: string, signal: AbortSignal): Promise<BookSearchResult[]>;
 }
 
 export function getCapabilities(p: BookSourcePlugin): SearchCapability[] {
@@ -34,6 +42,7 @@ export function getCapabilities(p: BookSourcePlugin): SearchCapability[] {
   if (p.searchBySeries) caps.push("series");
   if (p.searchByText) caps.push("text");
   if (p.findCovers) caps.push("cover");
+  if (p.searchEditions) caps.push("editions");
   return caps;
 }
 

@@ -230,4 +230,28 @@ export const legiePlugin: BookSourcePlugin = {
     if (d.book.coverUrl) urls.push(d.book.coverUrl);
     return urls.filter(Boolean);
   },
+
+  async searchEditions(query, signal) {
+    if (!query) return [];
+    const d = await fetchLegie(query, signal);
+    if (!d?.book) return [];
+    if (!d.editions.length) return [toResult(d.book)];
+    return d.editions.map((e) => ({
+      isbn: e.isbn,
+      title: d.book.title,
+      authors: d.book.authors,
+      genres: d.book.genres,
+      description: d.book.description,
+      publisher: e.publisher,
+      pageCount: null,
+      coverUrl: e.coverUrl || d.book.coverUrl,
+      averageRating: d.book.averageRating,
+      ratingsCount: d.book.ratingsCount,
+      series: d.book.series,
+      seriesNumber: d.book.seriesNumber,
+      serieSlug: d.book.serieSlug,
+      year: e.year,
+      language: e.language,
+    }));
+  },
 };
